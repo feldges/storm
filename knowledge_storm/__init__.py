@@ -1,4 +1,4 @@
-from .storm_wiki import *
+from .storm_investor import *
 from .collaborative_storm import *
 from .encoder import *
 from .interface import *

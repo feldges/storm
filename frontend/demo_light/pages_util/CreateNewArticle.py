@@ -11,8 +11,8 @@ def handle_not_started():
         _, search_form_column, _ = st.columns([2, 5, 2])
         with search_form_column:
             with st.form(key='search_form'):
-                # Text input for the search topic
-                DemoUIHelper.st_markdown_adjust_size(content="Enter the topic you want to learn in depth:",
+                # Text input for the search investment opportunity
+                DemoUIHelper.st_markdown_adjust_size(content="Enter the investment opportunity you want to write an investment memo for:",
                                                      font_size=18)
                 st.session_state["page3_topic"] = st.text_input(label='page3_topic', label_visibility="collapsed")
                 pass_appropriateness_check = True
@@ -23,7 +23,7 @@ def handle_not_started():
                 if submit_button and st.session_state["page3_write_article_state"] in ["not started", "show results"]:
                     if not st.session_state["page3_topic"].strip():
                         pass_appropriateness_check = False
-                        st.session_state["page3_warning_message"] = "topic could not be empty"
+                        st.session_state["page3_warning_message"] = "Investment opportunity could not be empty"
 
                     st.session_state["page3_topic_name_cleaned"] = st.session_state["page3_topic"].replace(
                         ' ', '_').replace('/', '_')
@@ -49,12 +49,12 @@ def handle_initiated():
 
 def handle_pre_writing():
    if st.session_state["page3_write_article_state"] == "pre_writing":
-        status = st.status("I am brain**STORM**ing now to research the topic. (This may take 2-3 minutes.)")
+        status = st.status("I am brain**STORM**ing now to research the investment opportunity. (This may take 2-3 minutes.)")
         st_callback_handler = demo_util.StreamlitCallbackHandler(status)
         with status:
             # STORM main gen outline
             st.session_state["runner"].run(
-                topic=st.session_state["page3_topic"],
+                opportunity=st.session_state["page3_topic"],
                 do_research=True,
                 do_generate_outline=True,
                 do_generate_article=False,
@@ -73,7 +73,7 @@ def handle_final_writing():
         with st.status(
                 "Now I will connect the information I found for your reference. (This may take 4-5 minutes.)") as status:
             st.info('Now I will connect the information I found for your reference. (This may take 4-5 minutes.)')
-            st.session_state["runner"].run(topic=st.session_state["page3_topic"], do_research=False,
+            st.session_state["runner"].run(opportunity=st.session_state["page3_topic"], do_research=False,
                                            do_generate_outline=False,
                                            do_generate_article=True, do_polish_article=True, remove_duplicate=False)
             # finish the session

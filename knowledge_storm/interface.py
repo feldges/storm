@@ -160,8 +160,8 @@ class ArticleSectionNode:
 
 
 class Article(ABC):
-    def __init__(self, topic_name):
-        self.root = ArticleSectionNode(topic_name)
+    def __init__(self, opportunity_name):
+        self.root = ArticleSectionNode(opportunity_name)
 
     def find_section(
         self, node: ArticleSectionNode, name: str
@@ -237,7 +237,7 @@ class Article(ABC):
 
     @classmethod
     @abstractmethod
-    def from_string(cls, topic_name: str, article_text: str):
+    def from_string(cls, opportunity_name: str, article_text: str):
         """
         Create an instance of the Article object from a string
         """

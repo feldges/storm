@@ -9,10 +9,12 @@ import markdown
 import pytz
 import streamlit as st
 
-# If you install the source code instead of the `knowledge-storm` package,
-# Uncomment the following lines:
-# import sys
-# sys.path.append('../../')
+import sys
+
+# Get the project root directory
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+sys.path.append(project_root)
+
 from knowledge_storm import STORMWikiRunnerArguments, STORMWikiRunner, STORMWikiLMConfigs
 from knowledge_storm.lm import OpenAIModel
 from knowledge_storm.rm import YouRM
@@ -37,15 +39,15 @@ class DemoFileIOHelper():
                 of file names and their absolute paths within that article's directory.
         """
         articles_dict = {}
-        for topic_name in os.listdir(articles_root_path):
-            topic_path = os.path.join(articles_root_path, topic_name)
+        for opportunity_name in os.listdir(articles_root_path):
+            topic_path = os.path.join(articles_root_path, opportunity_name)
             if os.path.isdir(topic_path):
                 # Initialize or update the dictionary for the topic
-                articles_dict[topic_name] = {}
+                articles_dict[opportunity_name] = {}
                 # Iterate over all files within a topic directory
                 for file_name in os.listdir(topic_path):
                     file_path = os.path.join(topic_path, file_name)
-                    articles_dict[topic_name][file_name] = os.path.abspath(file_path)
+                    articles_dict[opportunity_name][file_name] = os.path.abspath(file_path)
         return articles_dict
 
     @staticmethod
@@ -485,7 +487,10 @@ def _display_main_article(selected_article_file_path_dict, show_reference=True, 
 
 
 def get_demo_dir():
-    return os.path.dirname(os.path.abspath(__file__))
+    # return os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    # Return the data directory path
+    return os.path.join(project_root, "data")
 
 
 def clear_other_page_session_state(page_index: Optional[int]):

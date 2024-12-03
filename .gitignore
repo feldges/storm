@@ -25,3 +25,7 @@ secrets.toml
 */assertion.log
 *results/
 .venv/
+
+# Data
+**/data/
+.sesskey

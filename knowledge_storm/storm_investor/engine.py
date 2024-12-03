@@ -217,7 +217,7 @@ class STORMWikiRunner(Engine):
 
         information_table, conversation_log = (
             self.storm_knowledge_curation_module.research(
-                topic=self.topic,
+                opportunity=self.opportunity,
                 ground_truth_url=ground_truth_url,
                 callback_handler=callback_handler,
                 max_perspective=self.args.max_perspective,
@@ -242,7 +242,7 @@ class STORMWikiRunner(Engine):
     ) -> StormArticle:
 
         outline, draft_outline = self.storm_outline_generation_module.generate_outline(
-            topic=self.topic,
+            opportunity=self.opportunity,
             information_table=information_table,
             return_draft_outline=True,
             callback_handler=callback_handler,
@@ -263,7 +263,7 @@ class STORMWikiRunner(Engine):
     ) -> StormArticle:
 
         draft_article = self.storm_article_generation.generate_article(
-            topic=self.topic,
+            opportunity=self.opportunity,
             information_table=information_table,
             article_with_outline=outline,
             callback_handler=callback_handler,
@@ -281,7 +281,7 @@ class STORMWikiRunner(Engine):
     ) -> StormArticle:
 
         polished_article = self.storm_article_polishing_module.polish_article(
-            topic=self.topic,
+            opportunity=self.opportunity,
             draft_article=draft_article,
             remove_duplicate=remove_duplicate,
         )
@@ -315,36 +315,36 @@ class STORMWikiRunner(Engine):
 
     def _load_information_table_from_local_fs(self, information_table_local_path):
         assert os.path.exists(information_table_local_path), makeStringRed(
-            f"{information_table_local_path} not exists. Please set --do-research argument to prepare the conversation_log.json for this topic."
+            f"{information_table_local_path} not exists. Please set --do-research argument to prepare the conversation_log.json for this investment opportunity."
         )
         return StormInformationTable.from_conversation_log_file(
             information_table_local_path
         )
 
-    def _load_outline_from_local_fs(self, topic, outline_local_path):
+    def _load_outline_from_local_fs(self, opportunity, outline_local_path):
         assert os.path.exists(outline_local_path), makeStringRed(
-            f"{outline_local_path} not exists. Please set --do-generate-outline argument to prepare the storm_gen_outline.txt for this topic."
+            f"{outline_local_path} not exists. Please set --do-generate-outline argument to prepare the storm_gen_outline.txt for this investment opportunity."
         )
-        return StormArticle.from_outline_file(topic=topic, file_path=outline_local_path)
+        return StormArticle.from_outline_file(opportunity=opportunity, file_path=outline_local_path)
 
     def _load_draft_article_from_local_fs(
-        self, topic, draft_article_path, url_to_info_path
+        self, opportunity, draft_article_path, url_to_info_path
     ):
         assert os.path.exists(draft_article_path), makeStringRed(
-            f"{draft_article_path} not exists. Please set --do-generate-article argument to prepare the storm_gen_article.txt for this topic."
+            f"{draft_article_path} not exists. Please set --do-generate-article argument to prepare the storm_gen_article.txt for this investment opportunity."
         )
         assert os.path.exists(url_to_info_path), makeStringRed(
-            f"{url_to_info_path} not exists. Please set --do-generate-article argument to prepare the url_to_info.json for this topic."
+            f"{url_to_info_path} not exists. Please set --do-generate-article argument to prepare the url_to_info.json for this investment opportunity."
         )
         article_text = FileIOHelper.load_str(draft_article_path)
         references = FileIOHelper.load_json(url_to_info_path)
         return StormArticle.from_string(
-            topic_name=topic, article_text=article_text, references=references
+            opportunity_name=opportunity, article_text=article_text, references=references
         )
 
     def run(
         self,
-        topic: str,
+        opportunity: str,
         ground_truth_url: str = "",
         do_research: bool = True,
         do_generate_outline: bool = True,
@@ -357,13 +357,13 @@ class STORMWikiRunner(Engine):
         Run the STORM pipeline.
 
         Args:
-            topic: The topic to research.
-            ground_truth_url: A ground truth URL including a curated article about the topic. The URL will be excluded.
-            do_research: If True, research the topic through information-seeking conversation;
+            opportunity: The investment opportunity to research.
+            ground_truth_url: A ground truth URL including a curated article about the investment opportunity. The URL will be excluded.
+            do_research: If True, research the investment opportunity through information-seeking conversation;
              if False, expect conversation_log.json and raw_search_results.json to exist in the output directory.
-            do_generate_outline: If True, generate an outline for the topic;
+            do_generate_outline: If True, generate an outline for the investment opportunity;
              if False, expect storm_gen_outline.txt to exist in the output directory.
-            do_generate_article: If True, generate a curated article for the topic;
+            do_generate_article: If True, generate a curated article for the investment opportunity;
              if False, expect storm_gen_article.txt to exist in the output directory.
             do_polish_article: If True, polish the article by adding a summarization section and (optionally) removing
              duplicated content.
@@ -379,9 +379,9 @@ class STORMWikiRunner(Engine):
             "No action is specified. Please set at least one of --do-research, --do-generate-outline, --do-generate-article, --do-polish-article"
         )
 
-        self.topic = topic
+        self.opportunity = opportunity
         self.article_dir_name = truncate_filename(
-            topic.replace(" ", "_").replace("/", "_")
+            opportunity.replace(" ", "_").replace("/", "_")
         )
         self.article_output_dir = os.path.join(
             self.args.output_dir, self.article_dir_name
@@ -415,7 +415,7 @@ class STORMWikiRunner(Engine):
                 )
             if outline is None:
                 outline = self._load_outline_from_local_fs(
-                    topic=topic,
+                    opportunity=opportunity,
                     outline_local_path=os.path.join(
                         self.article_output_dir, "storm_gen_outline.txt"
                     ),
@@ -436,7 +436,7 @@ class STORMWikiRunner(Engine):
                     self.article_output_dir, "url_to_info.json"
                 )
                 draft_article = self._load_draft_article_from_local_fs(
-                    topic=topic,
+                    opportunity=opportunity,
                     draft_article_path=draft_article_path,
                     url_to_info_path=url_to_info_path,
                 )
