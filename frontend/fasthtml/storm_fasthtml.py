@@ -12,7 +12,7 @@ import demo_util
 from demo_util import DemoFileIOHelper, DemoTextProcessingHelper
 from knowledge_storm import STORMWikiRunnerArguments, STORMWikiRunner, STORMWikiLMConfigs
 from knowledge_storm.lm import OpenAIModel
-from knowledge_storm.rm import YouRM
+from knowledge_storm.rm import YouRM, BraveRM
 
 load_dotenv()
 
@@ -70,7 +70,8 @@ def set_storm_runner():
         retrieve_top_k=5
     )
 
-    rm = YouRM(ydc_api_key=ydc_api_key, k=engine_args.search_top_k)
+    # rm = YouRM(ydc_api_key=ydc_api_key, k=engine_args.search_top_k)
+    rm = BraveRM(k=engine_args.search_top_k)
 
     runner = STORMWikiRunner(engine_args, llm_configs, rm)
     return runner
@@ -146,6 +147,19 @@ data, opportunity_ids, opportunity_names, table = refresh_data()
 # Generate various HTML elements
 #-------------------------------------------------------------------------------
 
+def new_opportunity():
+    return Div(
+        Form(
+            Group(
+                Label("Enter the investment opportunity you want to write an investment memo for:"),
+                Input(name="opportunity_name", placeholder="New Investment Opportunity (e.g. 'Roche, a Swiss healthcare company')"),
+                Button("Start")
+            ), hx_post="/", target_id="opportunity_list", hx_swap="afterbegin"
+        ),
+        hx_swap_oob="true",
+        id="new_opportunity"
+    )
+
 # Generate a table of contents from the article
 def generate_toc(article):
     toc = []
@@ -195,7 +209,7 @@ def article(t):
             # In case there is a table it should still work
             content.append(P(line, cls="marked"))
 
-    return Div(*content, id='article', style="width: 75%;")
+    return Div(*content, id='article', style="width: 75%;", hx_swap_oob="true")
 
 def brainstorming_process(hidden=True):
     bsp = Details(
@@ -323,17 +337,6 @@ def citations_list(hidden=True):
 def home():
     refresh_data()
     title = "Investment Opportunity Analyzer"
-    new_opportunity = Div(
-        Form(
-            Group(
-                Label("Enter the investment opportunity you want to write an investment memo for:"),
-                Input(name="opportunity_name", placeholder="New Investment Opportunity (e.g. 'Roche, a Swiss healthcare company')"),
-                Button("Start")
-            ), hx_post="/", target_id="opportunity_list", hx_swap="afterbegin"
-        ),
-        id="new_opportunity"
-    )
-
     content = Div(
                 Div(brainstorming_process(hidden=True)),
                 Div(citations_list(hidden=True)),
@@ -346,7 +349,7 @@ def home():
 
     cards = Card(Div(*[opportunity_card(t) for t in table],
             id='opportunity_list',
-            cls="grid"), content, header=new_opportunity)
+            cls="grid"), content, header=new_opportunity())
     return Titled(title, cards)
 
 
@@ -356,6 +359,9 @@ def get():
 
 @rt("/opportunity/{opportunity_id}")
 def get(opportunity_id: str):
+    return show_opportunity(opportunity_id)
+
+def show_opportunity(opportunity_id: str):
     # Find the table entry where the 'id' matches the requested id
     opportunity = next((item for item in table if str(item['id']).lower() == str(opportunity_id).lower()), None)
     if opportunity is None:
@@ -396,8 +402,15 @@ def post(opportunity_name: str):
 
 def generation_preview(opportunity_id):
     global preview_exists
+    print(f"Status: {generation_status[opportunity_id]}")
+    print(f"Preview exists: {preview_exists}")
+    print(f"Opportunity ID in generation_preview: {opportunity_id}")
     if generation_status[opportunity_id] == 'complete':
-        return opportunity_generated, new_opportunity
+        return (
+            opportunity_generated,
+            new_opportunity(),
+            show_opportunity(opportunity_id)
+        )
     else:
         status = generation_status[opportunity_id]
         # First time the opportunity is being generated, it does not exist yet in the DOM
@@ -406,11 +419,11 @@ def generation_preview(opportunity_id):
             return Card(Div("In progress..."), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='load once', hx_swap='afterbegin', hx_target="#opportunity_list"), Div(status_text[status], id="new_opportunity", hx_swap_oob="true")
         # If the opportunity is already in the DOM, we update it
         else:
-            return Card(Div("In progress..."), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='every 1s', hx_swap='outerHTML', hx_target=f"#opportunity_{opportunity_id}", hx_swap_oob="true"), Div(status_text[status], id="new_opportunity", hx_swap_oob="true")
+            return Card(Div("In progress..."), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='every 5s', hx_swap='outerHTML', hx_target=f"#opportunity_{opportunity_id}", hx_swap_oob="true"), Div(status_text[status], id="new_opportunity", hx_swap_oob="true")
 
 @rt("/generation_preview")
 def post(opportunity_id: str):
-    print(opportunity_id)
+    print(f"Opportunity ID in generation_preview POST: {opportunity_id}")
     return generation_preview(opportunity_id)
 
 @threaded
