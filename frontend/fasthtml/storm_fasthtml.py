@@ -3,6 +3,7 @@ from fastcore.parallel import threaded
 import sys
 import os
 import re
+import json
 from dotenv import load_dotenv
 from collections import defaultdict
 
@@ -67,7 +68,8 @@ def set_storm_runner():
         max_conv_turn=3,
         max_perspective=3,
         search_top_k=3,
-        retrieve_top_k=5
+        retrieve_top_k=5,
+        database_path=database_path
     )
 
     # rm = YouRM(ydc_api_key=ydc_api_key, k=engine_args.search_top_k)
@@ -101,32 +103,105 @@ def create_anchor(text):
     return anchor
 
 #-------------------------------------------------------------------------------
+# Helper functions specific to
+def parse(text):
+    regex = re.compile(r']:\s+"(.*?)"\s+http')
+    text = regex.sub(']: http', text)
+    return text
+
+def construct_citation_dict_from_search_result(search_results):
+    if search_results is None:
+        return None
+    citation_dict = {}
+    for url, index in search_results['url_to_unified_index'].items():
+        citation_dict[index] = {'url': url,
+                                'title': search_results['url_to_info'][url]['title'],
+                                'snippets': search_results['url_to_info'][url]['snippets']}
+    return citation_dict
+
+def assemble_article_data(article_dict):
+    """
+    Constructs a dictionary containing the content and metadata of an article
+    based on the available files in the article's directory. This includes the
+    main article text, citations from a JSON file, and a conversation log if
+    available. The function prioritizes a polished version of the article if
+    both a raw and polished version exist.
+
+    Args:
+        article_dict (dict): A dictionary where keys are contents relevant
+                                to the article (e.g., the article text, citations
+                                in JSON format, conversation logs) and values
+                                are their content.
+
+    Returns:
+        dict or None: A dictionary containing the parsed content of the article,
+                    citations, and conversation log if available. Returns None
+                    if neither the raw nor polished article text exists in the
+                    provided file paths.
+    """
+    if "storm_gen_article" in article_dict or "storm_gen_article_polished" in article_dict:
+        full_article_name = "storm_gen_article_polished" if "storm_gen_article_polished" in article_dict else "storm_gen_article"
+        article_data = {"article": parse(article_dict[full_article_name])}
+        if "url_to_info" in article_dict:
+            article_data["citations"] = construct_citation_dict_from_search_result(
+                json.loads(article_dict["url_to_info"]))
+        if "conversation_log" in article_dict:
+            article_data["conversation_log"] = json.loads(article_dict["conversation_log"])
+        return article_data
+    return None
+
+#-------------------------------------------------------------------------------
 # Read data from the source directory and return a dictionary under table
 #-------------------------------------------------------------------------------
+# Create a database
+database_path = "data/investor_report.db"
+db = database(database_path)
+opportunity, user = db.t.opportunity, db.t.user
+if opportunity not in db.t:
+    user.create(name=str, pk='name')
+    opportunity.create(id=str, name=str, conversation_log=str, direct_gen_outline=str, llm_call_history=str,
+                    raw_search_results=str, run_config=str, storm_gen_article_polished=str, storm_gen_article=str,
+                    storm_gen_outline=str, url_to_info=str, user_name=str, pk='id')
+# Create types for the database tables
+Opportunity, User = opportunity.dataclass(), user.dataclass()
+
 def get_data():
-    data = DemoFileIOHelper.read_structure_to_dict(local_dir)
+
+    def read_data_to_dict(opportunity):
+        """
+        Gets the opportunity data from the database and returns a nested dictionary.
+
+        Args:
+            Table opportunity: the table that contains the opportunity data
+
+        Returns:
+            dict: A dictionary where each key is an article name, and each value is a dictionary
+                of opportunity data.
+        """
+        articles_dict = {}
+        for oppo in opportunity():
+            opportunity_id = oppo.id
+            opportunity_content = oppo.__dict__
+            articles_dict[opportunity_id] = {}
+            for key, value in opportunity_content.items():
+                articles_dict[opportunity_id][key] = value
+        return articles_dict
+
+    data = read_data_to_dict(opportunity)
     return data
 
-def get_opportunity_ids(data):
-    opportunity_ids = sorted(list(data.keys()))
-    return opportunity_ids
-
-def get_opportunity_names(opportunity_ids):
-    opportunity_names = [clean_name(t) for t in opportunity_ids]
-    return opportunity_names
-
-def get_table(opportunity_ids, opportunity_names):
+def get_table():
     table = []
-    for index, opportunity_id in enumerate(opportunity_ids):
-        article_data = DemoFileIOHelper.assemble_article_data(data[opportunity_id])
+    for oppo in opportunity():
+        article_data = assemble_article_data(data[oppo.id])
         if article_data is not None:
             citations_dict = article_data.get('citations', {})
             article_text = article_data.get('article', '')
             processed_text = postprocess_article(article_text, citations_dict)
 
             d = {}
-            d['id'] = opportunity_id
-            d['name'] = opportunity_names[index]
+            d['id'] = oppo.id
+            d['name'] = oppo.name
             d['article'] = processed_text
             d['citations'] = article_data.get('citations', [])
             d['conversation_log'] = article_data.get('conversation_log', {})
@@ -134,14 +209,12 @@ def get_table(opportunity_ids, opportunity_names):
     return table
 
 def refresh_data():
-    global data, opportunity_ids, opportunity_names, table
+    global data, table
     data = get_data()
-    opportunity_ids = get_opportunity_ids(data)
-    opportunity_names = get_opportunity_names(opportunity_ids)
-    table = get_table(opportunity_ids, opportunity_names)
-    return data, opportunity_ids, opportunity_names, table
+    table = get_table()
+    return data, table
 
-data, opportunity_ids, opportunity_names, table = refresh_data()
+data, table = refresh_data()
 
 #-------------------------------------------------------------------------------
 # Generate various HTML elements
@@ -395,6 +468,8 @@ def post(opportunity_name: str):
         pass_appropriateness_check = False
     if pass_appropriateness_check:
         generation_status[opportunity_id] = 'initiated'
+    # Create an entry in the database
+    opportunity.insert(Opportunity(id=opportunity_id, name=opportunity_name))
     run_workflow(opportunity_name, opportunity_id)
     global preview_exists
     preview_exists = None
@@ -440,6 +515,7 @@ def run_workflow(opportunity_name, opportunity_id):
         runner = set_storm_runner()
         runner.run(
             opportunity=opportunity_name,
+            opportunity_id=opportunity_id,
             do_research=True,
             do_generate_outline=True,
             do_generate_article=False,
@@ -451,6 +527,7 @@ def run_workflow(opportunity_name, opportunity_id):
     if generation_status[opportunity_id] == 'final_writing':
         runner.run(
             opportunity=opportunity_name,
+            opportunity_id=opportunity_id,
             do_research=False,
             do_generate_outline=False,
             do_generate_article=True,
@@ -458,7 +535,10 @@ def run_workflow(opportunity_name, opportunity_id):
             remove_duplicate=False
             #callback_handler=BaseCallbackHandler() # TODO: add callback handler
         )
-        runner.post_run()
+        runner.post_run(
+            opportunity=opportunity_name,
+            opportunity_id=opportunity_id,
+        )
         refresh_data()
         opportunity = next((item for item in table if item['id'].lower() == opportunity_id.lower()), None)
         global opportunity_generated

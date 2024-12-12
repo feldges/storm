@@ -3,6 +3,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from typing import Union, Literal, Optional
+import copy
 
 import dspy
 
@@ -16,6 +17,8 @@ from .modules.storm_dataclass import StormInformationTable, StormArticle
 from ..interface import Engine, LMConfigs, Retriever
 from ..lm import OpenAIModel, AzureOpenAIModel
 from ..utils import FileIOHelper, makeStringRed, truncate_filename
+
+from fasthtml.common import database
 
 
 class STORMWikiLMConfigs(LMConfigs):
@@ -132,6 +135,10 @@ class STORMWikiRunnerArguments:
     output_dir: str = field(
         metadata={"help": "Output directory for the results."},
     )
+    database_path: str = field(
+        default="data/investor_report.db",
+        metadata={"help": "Path to the database."},
+    )
     max_conv_turn: int = field(
         default=3,
         metadata={
@@ -178,6 +185,7 @@ class STORMWikiRunner(Engine):
         super().__init__(lm_configs=lm_configs)
         self.args = args
         self.lm_configs = lm_configs
+        self.db = database(self.args.database_path)
 
         self.retriever = Retriever(rm=rm, max_thread=self.args.max_thread_num)
         storm_persona_generator = StormPersonaGenerator(
@@ -225,6 +233,27 @@ class STORMWikiRunner(Engine):
                 return_conversation_log=True,
             )
         )
+        # -------------------------------------------------------------------------------
+        # Use DB instead of local file system
+
+        # Help function to handle non-serializable contents
+        def handle_non_serializable(obj): return "non-serializable contents"
+
+        def dump_json(obj):
+            return json.dumps(obj, default=handle_non_serializable)
+
+        def dump_url_to_info(information_table):
+            url_to_info = copy.deepcopy(information_table.url_to_info)
+            for url in url_to_info:
+                url_to_info[url] = url_to_info[url].to_dict()
+            return json.dumps(url_to_info, default=handle_non_serializable)
+
+        db = self.db
+        opportunity = db.t.opportunity
+        Opportunity = opportunity.dataclass()
+        oppo = Opportunity(id=self.opportunity_id, conversation_log=dump_json(conversation_log), raw_search_results=dump_url_to_info(information_table))
+        db.t.opportunity.update(oppo)
+        # -------------------------------------------------------------------------------
 
         FileIOHelper.dump_json(
             conversation_log,
@@ -247,6 +276,21 @@ class STORMWikiRunner(Engine):
             return_draft_outline=True,
             callback_handler=callback_handler,
         )
+
+        # -------------------------------------------------------------------------------
+        # Use DB instead of local file system
+
+        def dump_outline_to_file(outline):
+            outline_list = outline.get_outline_as_list(add_hashtags=True, include_root=False)
+            return "\n".join(outline_list)
+
+        db = self.db
+        opportunity = db.t.opportunity
+        Opportunity = opportunity.dataclass()
+        oppo = Opportunity(id=self.opportunity_id, storm_gen_outline=dump_outline_to_file(outline), direct_gen_outline=dump_outline_to_file(draft_outline))
+        db.t.opportunity.update(oppo)
+        # -------------------------------------------------------------------------------
+
         outline.dump_outline_to_file(
             os.path.join(self.article_output_dir, "storm_gen_outline.txt")
         )
@@ -268,6 +312,54 @@ class STORMWikiRunner(Engine):
             article_with_outline=outline,
             callback_handler=callback_handler,
         )
+
+        # -------------------------------------------------------------------------------
+        # Use DB instead of local file system
+
+        def to_string(article) -> str:
+            """
+            Get outline of the article as a list.
+
+            Returns:
+                list of section and subsection names.
+            """
+            result = []
+
+            def preorder_traverse(node, level):
+                prefix = "#" * level
+                result.append(f"{prefix} {node.section_name}".strip())
+                result.append(node.content)
+                for child in node.children:
+                    preorder_traverse(child, level + 1)
+
+            # Adjust the initial level based on whether root is included and hashtags are added
+            for child in article.root.children:
+                preorder_traverse(child, level=1)
+            result = [i.strip() for i in result if i is not None and i.strip()]
+            return "\n\n".join(result)
+
+        # Help function to handle non-serializable contents
+        def handle_non_serializable(obj): return "non-serializable contents"
+
+        def dump_json(obj):
+            return json.dumps(obj, default=handle_non_serializable)
+
+        def dump_article_as_plain_text(article):
+            return to_string(article)
+
+        def dump_reference_to_db(article):
+            reference = copy.deepcopy(article.reference)
+            for url in reference["url_to_info"]:
+                reference["url_to_info"][url] = reference["url_to_info"][url].to_dict()
+            return dump_json(reference)
+
+        db = self.db
+        opportunity = db.t.opportunity
+        Opportunity = opportunity.dataclass()
+        oppo = Opportunity(id=self.opportunity_id, storm_gen_article=dump_article_as_plain_text(draft_article), url_to_info=dump_reference_to_db(draft_article))
+        db.t.opportunity.update(oppo)
+        # -------------------------------------------------------------------------------
+
         draft_article.dump_article_as_plain_text(
             os.path.join(self.article_output_dir, "storm_gen_article.txt")
         )
@@ -285,19 +377,58 @@ class STORMWikiRunner(Engine):
             draft_article=draft_article,
             remove_duplicate=remove_duplicate,
         )
+
+        # -------------------------------------------------------------------------------
+        # Use DB instead of local file system
+
+        def to_string(article) -> str:
+            """
+            Get outline of the article as a list.
+
+            Returns:
+                list of section and subsection names.
+            """
+            result = []
+
+            def preorder_traverse(node, level):
+                prefix = "#" * level
+                result.append(f"{prefix} {node.section_name}".strip())
+                result.append(node.content)
+                for child in node.children:
+                    preorder_traverse(child, level + 1)
+
+            # Adjust the initial level based on whether root is included and hashtags are added
+            for child in article.root.children:
+                preorder_traverse(child, level=1)
+            result = [i.strip() for i in result if i is not None and i.strip()]
+            return "\n\n".join(result)
+
+        def dump_article_as_plain_text(article):
+            return to_string(article)
+
+        db = self.db
+        opportunity = db.t.opportunity
+        Opportunity = opportunity.dataclass()
+        oppo = Opportunity(id=self.opportunity_id, storm_gen_article_polished=dump_article_as_plain_text(polished_article))
+        db.t.opportunity.update(oppo)
+        # -------------------------------------------------------------------------------
+
         FileIOHelper.write_str(
             polished_article.to_string(),
             os.path.join(self.article_output_dir, "storm_gen_article_polished.txt"),
         )
         return polished_article
 
-    def post_run(self):
+    def post_run(self, opportunity, opportunity_id):
         """
         Post-run operations, including:
         1. Dumping the run configuration.
         2. Dumping the LLM call history.
         """
         config_log = self.lm_configs.log()
+        self.opportunity = opportunity
+        self.opportunity_id = opportunity_id
+
         FileIOHelper.dump_json(
             config_log, os.path.join(self.article_output_dir, "run_config.json")
         )
@@ -312,6 +443,30 @@ class STORMWikiRunner(Engine):
                         "kwargs"
                     )  # All kwargs are dumped together to run_config.json.
                 f.write(json.dumps(call) + "\n")
+
+        # -------------------------------------------------------------------------------
+        # Use DB instead of local file system
+
+        # Help function to handle non-serializable contents
+        def handle_non_serializable(obj): return "non-serializable contents"
+
+        def dump_json(obj):
+            return json.dumps(obj, default=handle_non_serializable)
+
+        def prepare_calls_for_db(llm_call_history):
+            calls_list = []
+            for call in llm_call_history:
+                if "kwargs" in call:
+                    call.pop("kwargs")
+                calls_list.append(call)
+            return json.dumps(calls_list)
+
+        db = self.db
+        opportunity = db.t.opportunity
+        Opportunity = opportunity.dataclass()
+        oppo = Opportunity(id=self.opportunity_id, run_config=dump_json(config_log), llm_call_history=prepare_calls_for_db(llm_call_history))
+        db.t.opportunity.update(oppo)
+        # -------------------------------------------------------------------------------
 
     def _load_information_table_from_local_fs(self, information_table_local_path):
         assert os.path.exists(information_table_local_path), makeStringRed(
@@ -345,6 +500,7 @@ class STORMWikiRunner(Engine):
     def run(
         self,
         opportunity: str,
+        opportunity_id: str,
         ground_truth_url: str = "",
         do_research: bool = True,
         do_generate_outline: bool = True,
@@ -380,6 +536,8 @@ class STORMWikiRunner(Engine):
         )
 
         self.opportunity = opportunity
+        self.opportunity_id = opportunity_id
+        self.db = database(self.args.database_path)
         self.article_dir_name = truncate_filename(
             opportunity.replace(" ", "_").replace("/", "_")
         )
