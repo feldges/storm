@@ -3,7 +3,6 @@ import logging
 import os
 from dataclasses import dataclass, field
 from typing import Union, Literal, Optional
-import copy
 
 import dspy
 
@@ -17,6 +16,7 @@ from .modules.storm_dataclass import StormInformationTable, StormArticle
 from ..interface import Engine, LMConfigs, Retriever
 from ..lm import OpenAIModel, AzureOpenAIModel
 from ..utils import FileIOHelper, makeStringRed, truncate_filename
+from ..utils_db import dump_json, dump_url_to_info, dump_outline_to_file, dump_article_as_plain_text, dump_reference_to_db, prepare_calls_for_db
 
 from fasthtml.common import database
 
@@ -236,18 +236,6 @@ class STORMWikiRunner(Engine):
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
 
-        # Help function to handle non-serializable contents
-        def handle_non_serializable(obj): return "non-serializable contents"
-
-        def dump_json(obj):
-            return json.dumps(obj, default=handle_non_serializable)
-
-        def dump_url_to_info(information_table):
-            url_to_info = copy.deepcopy(information_table.url_to_info)
-            for url in url_to_info:
-                url_to_info[url] = url_to_info[url].to_dict()
-            return json.dumps(url_to_info, default=handle_non_serializable)
-
         db = self.db
         opportunity = db.t.opportunity
         Opportunity = opportunity.dataclass()
@@ -279,10 +267,6 @@ class STORMWikiRunner(Engine):
 
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
-
-        def dump_outline_to_file(outline):
-            outline_list = outline.get_outline_as_list(add_hashtags=True, include_root=False)
-            return "\n".join(outline_list)
 
         db = self.db
         opportunity = db.t.opportunity
@@ -316,43 +300,6 @@ class STORMWikiRunner(Engine):
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
 
-        def to_string(article) -> str:
-            """
-            Get outline of the article as a list.
-
-            Returns:
-                list of section and subsection names.
-            """
-            result = []
-
-            def preorder_traverse(node, level):
-                prefix = "#" * level
-                result.append(f"{prefix} {node.section_name}".strip())
-                result.append(node.content)
-                for child in node.children:
-                    preorder_traverse(child, level + 1)
-
-            # Adjust the initial level based on whether root is included and hashtags are added
-            for child in article.root.children:
-                preorder_traverse(child, level=1)
-            result = [i.strip() for i in result if i is not None and i.strip()]
-            return "\n\n".join(result)
-
-        # Help function to handle non-serializable contents
-        def handle_non_serializable(obj): return "non-serializable contents"
-
-        def dump_json(obj):
-            return json.dumps(obj, default=handle_non_serializable)
-
-        def dump_article_as_plain_text(article):
-            return to_string(article)
-
-        def dump_reference_to_db(article):
-            reference = copy.deepcopy(article.reference)
-            for url in reference["url_to_info"]:
-                reference["url_to_info"][url] = reference["url_to_info"][url].to_dict()
-            return dump_json(reference)
-
         db = self.db
         opportunity = db.t.opportunity
         Opportunity = opportunity.dataclass()
@@ -380,31 +327,6 @@ class STORMWikiRunner(Engine):
 
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
-
-        def to_string(article) -> str:
-            """
-            Get outline of the article as a list.
-
-            Returns:
-                list of section and subsection names.
-            """
-            result = []
-
-            def preorder_traverse(node, level):
-                prefix = "#" * level
-                result.append(f"{prefix} {node.section_name}".strip())
-                result.append(node.content)
-                for child in node.children:
-                    preorder_traverse(child, level + 1)
-
-            # Adjust the initial level based on whether root is included and hashtags are added
-            for child in article.root.children:
-                preorder_traverse(child, level=1)
-            result = [i.strip() for i in result if i is not None and i.strip()]
-            return "\n\n".join(result)
-
-        def dump_article_as_plain_text(article):
-            return to_string(article)
 
         db = self.db
         opportunity = db.t.opportunity
@@ -446,20 +368,6 @@ class STORMWikiRunner(Engine):
 
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
-
-        # Help function to handle non-serializable contents
-        def handle_non_serializable(obj): return "non-serializable contents"
-
-        def dump_json(obj):
-            return json.dumps(obj, default=handle_non_serializable)
-
-        def prepare_calls_for_db(llm_call_history):
-            calls_list = []
-            for call in llm_call_history:
-                if "kwargs" in call:
-                    call.pop("kwargs")
-                calls_list.append(call)
-            return json.dumps(calls_list)
 
         db = self.db
         opportunity = db.t.opportunity
