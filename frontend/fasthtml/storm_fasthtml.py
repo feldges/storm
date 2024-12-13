@@ -54,8 +54,8 @@ os.makedirs(local_dir, exist_ok=True)
 # Initiate the runner
 def set_storm_runner():
     current_working_dir = local_dir
-    if not os.path.exists(current_working_dir):
-        os.makedirs(current_working_dir)
+    #if not os.path.exists(current_working_dir):
+    #    os.makedirs(current_working_dir)
 
     # configure STORM runner
     llm_configs = STORMWikiLMConfigs()
@@ -193,7 +193,6 @@ def get_data():
 def get_table():
     table = []
     for opportunity in opportunities():
-        print(f"Processing opportunity: {opportunity.id}")
         article_data = assemble_article_data(data[opportunity.id])
         if article_data is not None:
             citations_dict = article_data.get('citations', {})
@@ -478,9 +477,6 @@ def post(opportunity_name: str):
 
 def generation_preview(opportunity_id):
     global preview_exists
-    print(f"Status: {generation_status[opportunity_id]}")
-    print(f"Preview exists: {preview_exists}")
-    print(f"Opportunity ID in generation_preview: {opportunity_id}")
     if generation_status[opportunity_id] == 'complete':
         return (
             opportunity_generated,
@@ -499,16 +495,15 @@ def generation_preview(opportunity_id):
 
 @rt("/generation_preview")
 def post(opportunity_id: str):
-    print(f"Opportunity ID in generation_preview POST: {opportunity_id}")
     return generation_preview(opportunity_id)
 
 @threaded
 def run_workflow(opportunity_name, opportunity_id):
     # Initiate the workflow
     if generation_status[opportunity_id] == 'initiated':
-        current_working_dir = os.path.join(demo_util.get_demo_dir(), "DEMO_WORKING_DIR")
-        if not os.path.exists(current_working_dir):
-            os.makedirs(current_working_dir)
+    #    current_working_dir = os.path.join(demo_util.get_demo_dir(), "DEMO_WORKING_DIR")
+    #    if not os.path.exists(current_working_dir):
+    #        os.makedirs(current_working_dir)
         demo_util.set_storm_runner()
         generation_status[opportunity_id] = 'pre_writing'
     # Pre-writing

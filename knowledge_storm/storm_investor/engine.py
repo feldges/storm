@@ -15,7 +15,7 @@ from .modules.persona_generator import StormPersonaGenerator
 from .modules.storm_dataclass import StormInformationTable, StormArticle, DialogueTurn
 from ..interface import Engine, LMConfigs, Retriever
 from ..lm import OpenAIModel, AzureOpenAIModel
-from ..utils import FileIOHelper, makeStringRed, truncate_filename
+from ..utils import makeStringRed, truncate_filename
 from ..utils_db import dump_json, dump_url_to_info, dump_outline_to_file, dump_article_as_plain_text, dump_reference_to_db, prepare_calls_for_db
 
 from fasthtml.common import database
@@ -133,7 +133,7 @@ class STORMWikiRunnerArguments:
     """Arguments for controlling the STORM Wiki pipeline."""
 
     output_dir: str = field(
-        metadata={"help": "Output directory for the results."},
+        metadata={"help": "Output directory for the results. Currently disabled."},
     )
     database_path: str = field(
         default="data/investor_reports.db",
@@ -243,13 +243,6 @@ class STORMWikiRunner(Engine):
         db.t.opportunities.update(oppo)
         # -------------------------------------------------------------------------------
 
-        FileIOHelper.dump_json(
-            conversation_log,
-            os.path.join(self.article_output_dir, "conversation_log.json"),
-        )
-        information_table.dump_url_to_info(
-            os.path.join(self.article_output_dir, "raw_search_results.json")
-        )
         return information_table
 
     def run_outline_generation_module(
@@ -275,12 +268,6 @@ class STORMWikiRunner(Engine):
         db.t.opportunities.update(oppo)
         # -------------------------------------------------------------------------------
 
-        outline.dump_outline_to_file(
-            os.path.join(self.article_output_dir, "storm_gen_outline.txt")
-        )
-        draft_outline.dump_outline_to_file(
-            os.path.join(self.article_output_dir, "direct_gen_outline.txt")
-        )
         return outline
 
     def run_article_generation_module(
@@ -307,12 +294,6 @@ class STORMWikiRunner(Engine):
         db.t.opportunities.update(oppo)
         # -------------------------------------------------------------------------------
 
-        draft_article.dump_article_as_plain_text(
-            os.path.join(self.article_output_dir, "storm_gen_article.txt")
-        )
-        draft_article.dump_reference_to_file(
-            os.path.join(self.article_output_dir, "url_to_info.json")
-        )
         return draft_article
 
     def run_article_polishing_module(
@@ -335,10 +316,6 @@ class STORMWikiRunner(Engine):
         db.t.opportunities.update(oppo)
         # -------------------------------------------------------------------------------
 
-        FileIOHelper.write_str(
-            polished_article.to_string(),
-            os.path.join(self.article_output_dir, "storm_gen_article_polished.txt"),
-        )
         return polished_article
 
     def post_run(self, opportunity, opportunity_id):
@@ -351,20 +328,8 @@ class STORMWikiRunner(Engine):
         self.opportunity = opportunity
         self.opportunity_id = opportunity_id
 
-        FileIOHelper.dump_json(
-            config_log, os.path.join(self.article_output_dir, "run_config.json")
-        )
 
         llm_call_history = self.lm_configs.collect_and_reset_lm_history()
-        with open(
-            os.path.join(self.article_output_dir, "llm_call_history.jsonl"), "w"
-        ) as f:
-            for call in llm_call_history:
-                if "kwargs" in call:
-                    call.pop(
-                        "kwargs"
-                    )  # All kwargs are dumped together to run_config.json.
-                f.write(json.dumps(call) + "\n")
 
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
@@ -396,14 +361,6 @@ class STORMWikiRunner(Engine):
         return self.from_conversation_log_db(opportunity_id)
     # -------------------------------------------------------------------------------
 
-    def _load_information_table_from_local_fs(self, information_table_local_path):
-        assert os.path.exists(information_table_local_path), makeStringRed(
-            f"{information_table_local_path} not exists. Please set --do-research argument to prepare the conversation_log.json for this investment opportunity."
-        )
-        return StormInformationTable.from_conversation_log_file(
-            information_table_local_path
-        )
-
     # -------------------------------------------------------------------------------
     # Load outline from database
     def from_outline_db(self, opportunity: str, opportunity_id: str):
@@ -424,12 +381,6 @@ class STORMWikiRunner(Engine):
 
     # -------------------------------------------------------------------------------
 
-    def _load_outline_from_local_fs(self, opportunity, outline_local_path):
-        assert os.path.exists(outline_local_path), makeStringRed(
-            f"{outline_local_path} not exists. Please set --do-generate-outline argument to prepare the storm_gen_outline.txt for this investment opportunity."
-        )
-        return StormArticle.from_outline_file(opportunity=opportunity, file_path=outline_local_path)
-
     # -------------------------------------------------------------------------------
     # Load draft article from database
 
@@ -445,21 +396,6 @@ class STORMWikiRunner(Engine):
         return StormArticle.from_string(opportunity_name=opportunity_name, article_text=article_text, references=references)
 
     # -------------------------------------------------------------------------------
-
-    def _load_draft_article_from_local_fs(
-        self, opportunity, draft_article_path, url_to_info_path
-    ):
-        assert os.path.exists(draft_article_path), makeStringRed(
-            f"{draft_article_path} not exists. Please set --do-generate-article argument to prepare the storm_gen_article.txt for this investment opportunity."
-        )
-        assert os.path.exists(url_to_info_path), makeStringRed(
-            f"{url_to_info_path} not exists. Please set --do-generate-article argument to prepare the url_to_info.json for this investment opportunity."
-        )
-        article_text = FileIOHelper.load_str(draft_article_path)
-        references = FileIOHelper.load_json(url_to_info_path)
-        return StormArticle.from_string(
-            opportunity_name=opportunity, article_text=article_text, references=references
-        )
 
     def run(
         self,
@@ -508,7 +444,6 @@ class STORMWikiRunner(Engine):
         self.article_output_dir = os.path.join(
             self.args.output_dir, self.article_dir_name
         )
-        os.makedirs(self.article_output_dir, exist_ok=True)
 
         # research module
         information_table: StormInformationTable = None
