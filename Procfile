@@ -1,1 +1,0 @@
-web: poetry run uvicorn frontend.fasthtml.storm_fasthtml:app --host 0.0.0.0 --port $PORT
