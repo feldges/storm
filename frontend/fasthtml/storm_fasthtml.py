@@ -154,7 +154,7 @@ def assemble_article_data(article_dict):
 # Read data from the source directory and return a dictionary under table
 #-------------------------------------------------------------------------------
 # Create a database
-database_path = "data/investor_report.db"
+database_path = "data/investor_reports.db"
 db = database(database_path)
 opportunities, users = db.t.opportunities, db.t.users
 if opportunities not in db.t:
@@ -193,6 +193,7 @@ def get_data():
 def get_table():
     table = []
     for opportunity in opportunities():
+        print(f"Processing opportunity: {opportunity.id}")
         article_data = assemble_article_data(data[opportunity.id])
         if article_data is not None:
             citations_dict = article_data.get('citations', {})
@@ -453,8 +454,8 @@ def get(opportunity_id: str, persona: str):
 # Nice text to the user for the status
 status_text = {
     'initiated': "Initiated: report generation is being initiated ...",
-    'pre_writing': "Pre-writing: data is collected and outline is being generated ...",
-    'final_writing': "Final writing: article is being written ...",
+    'pre_writing': "Pre-writing: data is collected and outline is being generated. This takes up to two minutes ...",
+    'final_writing': "Final writing: article is being written. This takes up to one minute ...",
     'complete': "Report generation done!"
 }
 

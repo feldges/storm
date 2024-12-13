@@ -136,7 +136,7 @@ class STORMWikiRunnerArguments:
         metadata={"help": "Output directory for the results."},
     )
     database_path: str = field(
-        default="data/investor_report.db",
+        default="data/investor_reports.db",
         metadata={"help": "Path to the database."},
     )
     max_conv_turn: int = field(
@@ -381,6 +381,8 @@ class STORMWikiRunner(Engine):
     def from_conversation_log_db(self, opportunity_id):
         db = self.db
         opportunities = db.t.opportunities
+        # Next line is needed to have oppo as a dataclass instead of a dict
+        Opportunities = opportunities.dataclass()
         oppo = opportunities[opportunity_id]
         conversation_log_data = json.loads(oppo.conversation_log)
         conversations = []
@@ -410,13 +412,15 @@ class STORMWikiRunner(Engine):
         """
         db = self.db
         opportunities = db.t.opportunities
+        # Next line is needed to have oppo as a dataclass instead of a dict
+        Opportunities = opportunities.dataclass()
         oppo = opportunities[opportunity_id]
         storm_gen_outline = oppo.storm_gen_outline
         outline_str = storm_gen_outline
         return StormArticle.from_outline_str(opportunity=opportunity, outline_str=outline_str)
 
     def _load_outline_from_db(self, opportunity, opportunity_id):
-        return from_outline_db(opportunity=opportunity, opportunity_id=opportunity_id)
+        return self.from_outline_db(opportunity=opportunity, opportunity_id=opportunity_id)
 
     # -------------------------------------------------------------------------------
 
@@ -432,6 +436,8 @@ class STORMWikiRunner(Engine):
     def _load_draft_article_from_db(self, opportunity_id):
         db = self.db
         opportunities = db.t.opportunities
+        # Next line is needed to have oppo as a dataclass instead of a dict
+        Opportunities = opportunities.dataclass()
         oppo = opportunities[opportunity_id]
         opportunity_name = oppo.name
         article_text = oppo.storm_gen_article
@@ -515,9 +521,7 @@ class STORMWikiRunner(Engine):
         if do_generate_outline:
             # load information table if it's not initialized
             if information_table is None:
-                information_table = self._load_information_table_from_local_fs(
-                    os.path.join(self.article_output_dir, "conversation_log.json")
-                )
+                information_table = self._load_information_table_from_db(opportunity_id)
             outline = self.run_outline_generation_module(
                 information_table=information_table, callback_handler=callback_handler
             )
@@ -526,16 +530,9 @@ class STORMWikiRunner(Engine):
         draft_article: StormArticle = None
         if do_generate_article:
             if information_table is None:
-                information_table = self._load_information_table_from_local_fs(
-                    os.path.join(self.article_output_dir, "conversation_log.json")
-                )
+                information_table = self._load_information_table_from_db(opportunity_id)
             if outline is None:
-                outline = self._load_outline_from_local_fs(
-                    opportunity=opportunity,
-                    outline_local_path=os.path.join(
-                        self.article_output_dir, "storm_gen_outline.txt"
-                    ),
-                )
+                outline = self._load_outline_from_db(opportunity, opportunity_id)
             draft_article = self.run_article_generation_module(
                 outline=outline,
                 information_table=information_table,
@@ -545,17 +542,7 @@ class STORMWikiRunner(Engine):
         # article polishing module
         if do_polish_article:
             if draft_article is None:
-                draft_article_path = os.path.join(
-                    self.article_output_dir, "storm_gen_article.txt"
-                )
-                url_to_info_path = os.path.join(
-                    self.article_output_dir, "url_to_info.json"
-                )
-                draft_article = self._load_draft_article_from_local_fs(
-                    opportunity=opportunity,
-                    draft_article_path=draft_article_path,
-                    url_to_info_path=url_to_info_path,
-                )
+                draft_article = self._load_draft_article_from_db(opportunity_id=opportunity_id)
             self.run_article_polishing_module(
                 draft_article=draft_article, remove_duplicate=remove_duplicate
             )
