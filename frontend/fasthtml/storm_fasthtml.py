@@ -156,20 +156,20 @@ def assemble_article_data(article_dict):
 # Create a database
 database_path = "data/investor_report.db"
 db = database(database_path)
-opportunity, user = db.t.opportunity, db.t.user
-if opportunity not in db.t:
-    user.create(name=str, pk='name')
-    opportunity.create(id=str, name=str, conversation_log=str, direct_gen_outline=str, llm_call_history=str,
+opportunities, users = db.t.opportunities, db.t.users
+if opportunities not in db.t:
+    users.create(name=str, pk='name')
+    opportunities.create(id=str, name=str, conversation_log=str, direct_gen_outline=str, llm_call_history=str,
                     raw_search_results=str, run_config=str, storm_gen_article_polished=str, storm_gen_article=str,
                     storm_gen_outline=str, url_to_info=str, user_name=str, pk='id')
 # Create types for the database tables
-Opportunity, User = opportunity.dataclass(), user.dataclass()
+Opportunities, Users = opportunities.dataclass(), users.dataclass()
 
 def get_data():
 
-    def read_data_to_dict(opportunity):
+    def read_data_to_dict(opportunities):
         """
-        Gets the opportunity data from the database and returns a nested dictionary.
+        Gets the opportunities data from the database and returns a nested dictionary.
 
         Args:
             Table opportunity: the table that contains the opportunity data
@@ -179,29 +179,29 @@ def get_data():
                 of opportunity data.
         """
         articles_dict = {}
-        for oppo in opportunity():
-            opportunity_id = oppo.id
-            opportunity_content = oppo.__dict__
+        for opportunity in opportunities():
+            opportunity_id = opportunity.id
+            opportunity_content = opportunity.__dict__
             articles_dict[opportunity_id] = {}
             for key, value in opportunity_content.items():
                 articles_dict[opportunity_id][key] = value
         return articles_dict
 
-    data = read_data_to_dict(opportunity)
+    data = read_data_to_dict(opportunities)
     return data
 
 def get_table():
     table = []
-    for oppo in opportunity():
-        article_data = assemble_article_data(data[oppo.id])
+    for opportunity in opportunities():
+        article_data = assemble_article_data(data[opportunity.id])
         if article_data is not None:
             citations_dict = article_data.get('citations', {})
             article_text = article_data.get('article', '')
             processed_text = postprocess_article(article_text, citations_dict)
 
             d = {}
-            d['id'] = oppo.id
-            d['name'] = oppo.name
+            d['id'] = opportunity.id
+            d['name'] = opportunity.name
             d['article'] = processed_text
             d['citations'] = article_data.get('citations', [])
             d['conversation_log'] = article_data.get('conversation_log', {})
@@ -469,7 +469,7 @@ def post(opportunity_name: str):
     if pass_appropriateness_check:
         generation_status[opportunity_id] = 'initiated'
     # Create an entry in the database
-    opportunity.insert(Opportunity(id=opportunity_id, name=opportunity_name))
+    opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name))
     run_workflow(opportunity_name, opportunity_id)
     global preview_exists
     preview_exists = None
