@@ -544,4 +544,4 @@ def run_workflow(opportunity_name, opportunity_id):
 
 if __name__ == '__main__':
   # Alternative: you can use serve or uvicorn
-  serve(host='0.0.0.0', port=8001, reload=True)
+  serve(host='0.0.0.0', port=os.getenv("PORT", 8001), reload=True)
