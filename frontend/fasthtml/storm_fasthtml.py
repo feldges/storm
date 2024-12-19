@@ -490,9 +490,7 @@ def post(opportunity_name: str):
     if pass_appropriateness_check:
         generation_status[opportunity_id] = 'initiated'
     with get_db_connection() as db:
-        print(f"Inserting opportunity {opportunity_id} into the database")
         db.t.opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name))
-        print(f"Inserted opportunity {opportunity_id} into the database")
     run_workflow(opportunity_name, opportunity_id)
     global preview_exists
     preview_exists = None
