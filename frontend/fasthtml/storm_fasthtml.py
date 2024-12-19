@@ -167,6 +167,9 @@ if opportunities not in db.t:
 Opportunities, Users = opportunities.dataclass(), users.dataclass()
 
 def clean_db():
+    db = database(database_path)
+    opportunities = db.t.opportunities
+    Opportunities = opportunities.dataclass()
     for opportunity in opportunities():
         for key, value in opportunity.__dict__.items():
             if key != 'user_name' and value is None:
@@ -197,10 +200,16 @@ def get_data():
                 articles_dict[opportunity_id][key] = value
         return articles_dict
 
+    db = database(database_path)
+    opportunities = db.t.opportunities
+    Opportunities = opportunities.dataclass()
     data = read_data_to_dict(opportunities)
     return data
 
 def get_table():
+    db = database(database_path)
+    opportunities = db.t.opportunities
+    Opportunities = opportunities.dataclass()
     table = []
     for opportunity in opportunities():
         article_data = assemble_article_data(data[opportunity.id])
