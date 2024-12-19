@@ -62,7 +62,7 @@ def set_storm_runner():
     llm_configs = STORMWikiLMConfigs()
     llm_configs.init_openai_model(openai_api_key=openai_api_key, openai_type='openai')
     llm_configs.set_question_asker_lm(OpenAIModel(model='gpt-4-1106-preview', api_key=openai_api_key,
-                                                  api_provider='openai',
+                                                  model_type='chat',
                                                   max_tokens=500, temperature=1.0, top_p=0.9))
     engine_args = STORMWikiRunnerArguments(
         output_dir=current_working_dir,
@@ -166,6 +166,15 @@ if opportunities not in db.t:
 # Create types for the database tables
 Opportunities, Users = opportunities.dataclass(), users.dataclass()
 
+def clean_db():
+    for opportunity in opportunities():
+        for key, value in opportunity.__dict__.items():
+            if key != 'user_name' and value is None:
+                print(opportunity.__dict__)
+                print(f"Deleting opportunity {opportunity.id} because of None values.")
+                opportunities.delete(opportunity.id)
+                break
+
 def get_data():
 
     def read_data_to_dict(opportunities):
@@ -209,13 +218,15 @@ def get_table():
             table.append(d)
     return table
 
-def refresh_data():
+def refresh_data(clean_database=False):
     global data, table
+    if clean_database:
+        clean_db()
     data = get_data()
     table = get_table()
     return data, table
 
-data, table = refresh_data()
+data, table = refresh_data(clean_database=True)
 
 #-------------------------------------------------------------------------------
 # Generate various HTML elements
@@ -409,7 +420,7 @@ def citations_list(hidden=True):
 #-------------------------------------------------------------------------------
 
 def home():
-    refresh_data()
+    refresh_data(refresh_data)
     title = "Investment Opportunity Analyzer"
     content = Div(
                 Div(brainstorming_process(hidden=True)),
@@ -544,4 +555,5 @@ def run_workflow(opportunity_name, opportunity_id):
 
 if __name__ == '__main__':
   # Alternative: you can use serve or uvicorn
-  serve(host='0.0.0.0', port=os.getenv("PORT", 8001), reload=True)
+  port = int(os.getenv("PORT", 8080))
+  serve(host='0.0.0.0', port=port, reload=True)
