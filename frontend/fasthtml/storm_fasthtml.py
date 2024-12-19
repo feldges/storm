@@ -14,6 +14,7 @@ from demo_util import DemoFileIOHelper, DemoTextProcessingHelper
 from knowledge_storm import STORMWikiRunnerArguments, STORMWikiRunner, STORMWikiLMConfigs
 from knowledge_storm.lm import OpenAIModel
 from knowledge_storm.rm import YouRM, BraveRM
+from knowledge_storm.utils_db import database_path, get_db_connection
 
 load_dotenv()
 
@@ -155,28 +156,27 @@ def assemble_article_data(article_dict):
 # Read data from the source directory and return a dictionary under table
 #-------------------------------------------------------------------------------
 # Create a database
-database_path = "data/investor_reports.db"
-db = database(database_path)
-opportunities, users = db.t.opportunities, db.t.users
-if opportunities not in db.t:
-    users.create(name=str, pk='name')
-    opportunities.create(id=str, name=str, conversation_log=str, direct_gen_outline=str, llm_call_history=str,
-                    raw_search_results=str, run_config=str, storm_gen_article_polished=str, storm_gen_article=str,
-                    storm_gen_outline=str, url_to_info=str, user_name=str, pk='id')
-# Create types for the database tables
-Opportunities, Users = opportunities.dataclass(), users.dataclass()
+with get_db_connection() as db:
+    opportunities, users = db.t.opportunities, db.t.users
+    if opportunities not in db.t:
+        users.create(name=str, pk='name')
+        opportunities.create(id=str, name=str, conversation_log=str, direct_gen_outline=str, llm_call_history=str,
+                        raw_search_results=str, run_config=str, storm_gen_article_polished=str, storm_gen_article=str,
+                        storm_gen_outline=str, url_to_info=str, user_name=str, pk='id')
+    # Create types for the database tables
+    Opportunities, Users = opportunities.dataclass(), users.dataclass()
 
 def clean_db():
-    db = database(database_path)
-    opportunities = db.t.opportunities
-    Opportunities = opportunities.dataclass()
-    for opportunity in opportunities():
-        for key, value in opportunity.__dict__.items():
-            if key != 'user_name' and value is None:
-                print(opportunity.__dict__)
-                print(f"Deleting opportunity {opportunity.id} because of None values.")
-                opportunities.delete(opportunity.id)
-                break
+    with get_db_connection() as db:
+        opportunities = db.t.opportunities
+        Opportunities = opportunities.dataclass()
+        for opportunity in opportunities():
+            for key, value in opportunity.__dict__.items():
+                if key != 'user_name' and value is None:
+                    print(opportunity.__dict__)
+                    print(f"Deleting opportunity {opportunity.id} because of None values.")
+                    opportunities.delete(opportunity.id)
+                    break
 
 def get_data():
 
@@ -200,31 +200,31 @@ def get_data():
                 articles_dict[opportunity_id][key] = value
         return articles_dict
 
-    db = database(database_path)
-    opportunities = db.t.opportunities
-    Opportunities = opportunities.dataclass()
-    data = read_data_to_dict(opportunities)
+    with get_db_connection() as db:
+        opportunities = db.t.opportunities
+        Opportunities = opportunities.dataclass()
+        data = read_data_to_dict(opportunities)
     return data
 
 def get_table():
-    db = database(database_path)
-    opportunities = db.t.opportunities
-    Opportunities = opportunities.dataclass()
-    table = []
-    for opportunity in opportunities():
-        article_data = assemble_article_data(data[opportunity.id])
-        if article_data is not None:
-            citations_dict = article_data.get('citations', {})
-            article_text = article_data.get('article', '')
-            processed_text = postprocess_article(article_text, citations_dict)
+    with get_db_connection() as db:
+        opportunities = db.t.opportunities
+        Opportunities = opportunities.dataclass()
+        table = []
+        for opportunity in opportunities():
+            article_data = assemble_article_data(data[opportunity.id])
+            if article_data is not None:
+                citations_dict = article_data.get('citations', {})
+                article_text = article_data.get('article', '')
+                processed_text = postprocess_article(article_text, citations_dict)
 
-            d = {}
-            d['id'] = opportunity.id
-            d['name'] = opportunity.name
-            d['article'] = processed_text
-            d['citations'] = article_data.get('citations', [])
-            d['conversation_log'] = article_data.get('conversation_log', {})
-            table.append(d)
+                d = {}
+                d['id'] = opportunity.id
+                d['name'] = opportunity.name
+                d['article'] = processed_text
+                d['citations'] = article_data.get('citations', [])
+                d['conversation_log'] = article_data.get('conversation_log', {})
+                table.append(d)
     return table
 
 def refresh_data(clean_database=False):
@@ -489,8 +489,10 @@ def post(opportunity_name: str):
         pass_appropriateness_check = False
     if pass_appropriateness_check:
         generation_status[opportunity_id] = 'initiated'
-    # Create an entry in the database
-    opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name))
+    with get_db_connection() as db:
+        print(f"Inserting opportunity {opportunity_id} into the database")
+        db.t.opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name))
+        print(f"Inserted opportunity {opportunity_id} into the database")
     run_workflow(opportunity_name, opportunity_id)
     global preview_exists
     preview_exists = None

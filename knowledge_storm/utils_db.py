@@ -1,5 +1,27 @@
 import json
 import copy
+import threading
+from contextlib import contextmanager
+from fasthtml.common import *
+
+#------------------------------------------------------------------------------
+database_path = "data/investor_reports.db"
+#------------------------------------------------------------------------------
+
+_thread_local = threading.local()
+
+@contextmanager
+def get_db_connection():
+    if not hasattr(_thread_local, "db"):
+        _thread_local.db = database(database_path)
+    try:
+        yield _thread_local.db
+    finally:
+        if hasattr(_thread_local, "db"):
+            # Close the connection
+            _thread_local.db.close()
+            # Remove the db attribute
+            delattr(_thread_local, "db")
 
 # Help function to handle non-serializable contents
 def handle_non_serializable(obj): return "non-serializable contents"
