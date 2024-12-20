@@ -42,7 +42,6 @@ html {
     background: #e3f2fd;
 }
 """
-
 hdrs = (MarkdownJS(), Style(scroll_behaviour))#, scripts, link_daisyui, link_pico)
 
 app, rt = fast_app(pico=True, hdrs=hdrs)
@@ -243,6 +242,7 @@ data, table = refresh_data(clean_database=True)
 
 def new_opportunity():
     return Div(
+        #Div(
         Form(
             Group(
                 Label("Enter the investment opportunity you want to write an investment memo for:"),
@@ -252,7 +252,8 @@ def new_opportunity():
         ),
         hx_swap_oob="true",
         id="new_opportunity"
-    )
+    # Only use this for debugging. It allows to run only a specific section of the code.
+    )#, Button("Debug", hx_post="/debug", hx_target="#opportunity_list", hx_swap="outerHTML"))
 
 # Generate a table of contents from the article
 def generate_toc(article):
@@ -429,7 +430,7 @@ def citations_list(hidden=True):
 #-------------------------------------------------------------------------------
 
 def home():
-    refresh_data(refresh_data)
+    refresh_data(clean_database=True)
     title = "Investment Opportunity Analyzer"
     content = Div(
                 Div(brainstorming_process(hidden=True)),
@@ -561,6 +562,21 @@ def run_workflow(opportunity_name, opportunity_id):
         preview_exists = None
 
     return opportunity_generated
+
+@threaded
+@rt("/debug")
+def post():
+    runner = set_storm_runner()
+    runner.run(
+        opportunity="SpaceX a space company",
+        opportunity_id="SpaceX_a_space_company",
+        do_research=False,
+        do_generate_outline=False,
+        do_generate_article=True,
+        do_polish_article=True,
+        #callback_handler=BaseCallbackHandler() # TODO: add callback handler
+    )
+    return Div("Process run")
 
 if __name__ == '__main__':
   # Alternative: you can use serve or uvicorn

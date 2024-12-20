@@ -3,6 +3,11 @@ import copy
 import logging
 from concurrent.futures import as_completed
 from typing import List, Union
+import threading
+import multiprocessing
+import sys
+import time
+import os
 
 import dspy
 
@@ -49,6 +54,14 @@ class StormArticleGenerationModule(ArticleGenerationModule):
             "collected_info": collected_info,
         }
 
+    def generate_section_with_debug(self, opportunity, section_title, information_table, section_outline, section_query):
+        thread_id = threading.current_thread().ident
+        start = time.time()
+        result = self.generate_section(opportunity, section_title, information_table, section_outline, section_query)
+        duration = time.time() - start
+        print(f"Section {section_title} in thread {thread_id} took {duration:.2f}s")
+        return result
+
     def generate_article(
         self,
         opportunity: str,
@@ -88,9 +101,30 @@ class StormArticleGenerationModule(ArticleGenerationModule):
             section_output_dict_collection = [section_output_dict]
         else:
 
+            def print_system_info():
+                print("\n=== System Information ===")
+                print(f"Python version: {sys.version}")
+                print(f"CPU count: {multiprocessing.cpu_count()}")
+                print(f"Initial thread count: {threading.active_count()}")
+                print(f"Main thread: {threading.current_thread().name}")
+                print("\n=== Environment Variables ===")
+                thread_related = {k:v for k,v in os.environ.items() if 'THREAD' in k.upper()}
+                print(f"Thread-related env vars: {thread_related}")
+                print("\n=== All Environment Variables ===")
+                print(dict(os.environ))
+                print("\n=== Active Threads ===")
+                for thread in threading.enumerate():
+                    print(f"Thread: {thread.name} ({thread.ident})")
+                print("========================\n")
+
+            # Add before your ThreadPoolExecutor code
+            print_system_info()
+
             with concurrent.futures.ThreadPoolExecutor(
                 max_workers=self.max_thread_num
             ) as executor:
+                print(f"\nExecutor created with max_workers={self.max_thread_num}")
+                print(f"Thread count after executor creation: {threading.active_count()}")
                 future_to_sec_title = {}
                 for section_title in sections_to_write:
                     # We don't want to write a separate introduction section.
@@ -110,7 +144,7 @@ class StormArticleGenerationModule(ArticleGenerationModule):
                     section_outline = "\n".join(queries_with_hashtags)
                     future_to_sec_title[
                         executor.submit(
-                            self.generate_section,
+                            self.generate_section_with_debug,
                             opportunity,
                             section_title,
                             information_table,

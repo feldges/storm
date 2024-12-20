@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
 # Copy the entire app directory
 COPY . /app
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
 # Run the python code
 CMD ["python", "frontend/fasthtml/storm_fasthtml.py"]

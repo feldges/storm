@@ -3,7 +3,10 @@ import logging
 import os
 from concurrent.futures import as_completed
 from typing import Union, List, Tuple, Optional, Dict
-
+import threading
+import multiprocessing
+import sys
+import time
 import dspy
 
 from .callback import BaseCallbackHandler
@@ -322,11 +325,41 @@ class StormKnowledgeCurationModule(KnowledgeCurationModule):
                 callback_handler=callback_handler,
             )
 
+        def run_conv_with_debug(persona):
+            thread_id = threading.current_thread().ident
+            start = time.time()
+            result = run_conv(persona)
+            duration = time.time() - start
+            print(f"Persona {persona} in thread {thread_id} took {duration:.2f}s")
+            return result
+
+
         max_workers = min(self.max_thread_num, len(considered_personas))
 
+        def print_system_info():
+            print("\n=== System Information ===")
+            print(f"Python version: {sys.version}")
+            print(f"CPU count: {multiprocessing.cpu_count()}")
+            print(f"Initial thread count: {threading.active_count()}")
+            print(f"Main thread: {threading.current_thread().name}")
+            print("\n=== Environment Variables ===")
+            thread_related = {k:v for k,v in os.environ.items() if 'THREAD' in k.upper()}
+            print(f"Thread-related env vars: {thread_related}")
+            print("\n=== All Environment Variables ===")
+            print(dict(os.environ))
+            print("\n=== Active Threads ===")
+            for thread in threading.enumerate():
+                print(f"Thread: {thread.name} ({thread.ident})")
+            print("========================\n")
+
+        # Add before your ThreadPoolExecutor code
+        print_system_info()
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            print(f"\nExecutor created with max_workers={max_workers}")
+            print(f"Thread count after executor creation: {threading.active_count()}")
             future_to_persona = {
-                executor.submit(run_conv, persona): persona
+                executor.submit(run_conv_with_debug, persona): persona
                 for persona in considered_personas
             }
 
