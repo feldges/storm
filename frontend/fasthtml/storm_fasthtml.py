@@ -252,9 +252,9 @@ def new_opportunity():
 
 def opportunity_card(t):
     return Card(
-        Div(AX(t["name"], f'/opportunity/{t["id"]}', hx_target="#article", hx_swap='outerHTML'),
+        Div(AX(t["name"], f'/opportunity/{t["id"]}', hx_target="#article", hx_swap='outerHTML')),
         P(t["article"][:100]+"..."),
-        id=f'opportunity_{t["id"]}')
+        id=f'opportunity_{t["id"]}'
     )
 
 def table_of_contents(t):
@@ -481,14 +481,19 @@ def post(opportunity_name: str):
     opportunity_id = name_to_id(opportunity_name)
     if not(pass_appropriateness_check):
         return Div("Opportunity name is not appropriate")
+    global opportunity_exists
     with get_db_connection() as db:
         opportunities = db.t.opportunities
         Opportunities = opportunities.dataclass()
-        if opportunities[opportunity_id] is None:
+        try:
+            opportunities[opportunity_id]
+            opportunity_exists = True
+            status = opportunities[opportunity_id].status
+            if status == 'complete':
+                return None, Div(status_text[status], id="new_opportunity", hx_swap_oob="true")
+        except NotFoundError:
+            opportunity_exists = False
             db.t.opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, status='initiated'))
-        else:
-            if opportunities[opportunity_id].status == 'complete':
-                return Div("Report generation already done!")
     run_workflow(opportunity_name, opportunity_id)
     global preview_exists
     preview_exists = None
@@ -504,8 +509,9 @@ def generation_preview(opportunity_id):
         )
     else:
         status = get_status(opportunity_id)
+        # If the opportunity exists already (from a previous run), we do not want to create a new entry in the DOM
         # First time the opportunity is being generated, it does not exist yet in the DOM
-        if not preview_exists:
+        if not preview_exists and not opportunity_exists:
             preview_exists = True
             return Card(Div("In progress..."), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='load once', hx_swap='afterbegin', hx_target="#opportunity_list"), Div(status_text[status], id="new_opportunity", hx_swap_oob="true")
         # If the opportunity is already in the DOM, we update it
