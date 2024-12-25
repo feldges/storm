@@ -21,8 +21,6 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 ydc_api_key = os.getenv("YDC_API_KEY")
 
-generation_status = defaultdict(lambda: 'not started')
-
 scroll_behaviour = """
 html {
     scroll-behavior: smooth;
@@ -151,6 +149,27 @@ def assemble_article_data(article_dict):
         return article_data
     return None
 
+def read_data_to_dict(opportunities):
+    """
+    Gets the opportunities data from the database and returns a nested dictionary.
+
+    Args:
+        Table opportunity: the table that contains the opportunity data
+
+    Returns:
+        dict: A dictionary where each key is an article name, and each value is a dictionary
+            of opportunity data.
+    """
+    articles_dict = {}
+    for opportunity in opportunities():
+        opportunity_id = opportunity.id
+        opportunity_content = opportunity.__dict__
+        articles_dict[opportunity_id] = {}
+        for key, value in opportunity_content.items():
+            if value is not None:
+                articles_dict[opportunity_id][key] = value
+    return articles_dict
+
 #-------------------------------------------------------------------------------
 # Read data from the source directory and return a dictionary under table
 #-------------------------------------------------------------------------------
@@ -161,80 +180,56 @@ with get_db_connection() as db:
         users.create(name=str, pk='name')
         opportunities.create(id=str, name=str, conversation_log=str, direct_gen_outline=str, llm_call_history=str,
                         raw_search_results=str, run_config=str, storm_gen_article_polished=str, storm_gen_article=str,
-                        storm_gen_outline=str, url_to_info=str, user_name=str, pk='id')
+                        storm_gen_outline=str, url_to_info=str, user_name=str, status=str, pk='id')
     # Create types for the database tables
     Opportunities, Users = opportunities.dataclass(), users.dataclass()
-
-def clean_db():
-    with get_db_connection() as db:
-        opportunities = db.t.opportunities
-        Opportunities = opportunities.dataclass()
-        for opportunity in opportunities():
-            for key, value in opportunity.__dict__.items():
-                if key != 'user_name' and value is None:
-                    print(opportunity.__dict__)
-                    print(f"Deleting opportunity {opportunity.id} because of None values.")
-                    opportunities.delete(opportunity.id)
-                    break
-
-def get_data():
-
-    def read_data_to_dict(opportunities):
-        """
-        Gets the opportunities data from the database and returns a nested dictionary.
-
-        Args:
-            Table opportunity: the table that contains the opportunity data
-
-        Returns:
-            dict: A dictionary where each key is an article name, and each value is a dictionary
-                of opportunity data.
-        """
-        articles_dict = {}
-        for opportunity in opportunities():
-            opportunity_id = opportunity.id
-            opportunity_content = opportunity.__dict__
-            articles_dict[opportunity_id] = {}
-            for key, value in opportunity_content.items():
-                articles_dict[opportunity_id][key] = value
-        return articles_dict
-
-    with get_db_connection() as db:
-        opportunities = db.t.opportunities
-        Opportunities = opportunities.dataclass()
-        data = read_data_to_dict(opportunities)
-    return data
 
 def get_table():
     with get_db_connection() as db:
         opportunities = db.t.opportunities
         Opportunities = opportunities.dataclass()
+        data = read_data_to_dict(opportunities)
         table = []
         for opportunity in opportunities():
+            d = {}
+            d['id'] = opportunity.id
+            d['name'] = opportunity.name
+            d['status'] = opportunity.status
+            d['article'] = ""
+            d['citations'] = []
+            d['conversation_log'] = {}
             article_data = assemble_article_data(data[opportunity.id])
             if article_data is not None:
                 citations_dict = article_data.get('citations', {})
                 article_text = article_data.get('article', '')
                 processed_text = postprocess_article(article_text, citations_dict)
-
-                d = {}
-                d['id'] = opportunity.id
-                d['name'] = opportunity.name
                 d['article'] = processed_text
                 d['citations'] = article_data.get('citations', [])
                 d['conversation_log'] = article_data.get('conversation_log', {})
-                table.append(d)
-    return table
-
-def refresh_data(clean_database=False):
-    global data, table
-    if clean_database:
-        clean_db()
-    data = get_data()
-    table = get_table()
+            table.append(d)
     return data, table
 
-data, table = refresh_data(clean_database=True)
+def refresh_data():
+    global data, table
+    data, table = get_table()
+    return data, table
+
+def get_status(opportunity_id):
+    with get_db_connection() as db:
+        opportunities = db.t.opportunities
+        Opportunities = opportunities.dataclass()
+        opportunity = opportunities[opportunity_id]
+        return opportunity.status
+
+def set_status(opportunity_id, status):
+    with get_db_connection() as db:
+        opportunities = db.t.opportunities
+        Opportunities = opportunities.dataclass()
+        oppo = Opportunities(id=opportunity_id, status=status)
+        db.t.opportunities.update(oppo)
+    return status
+
+data, table = refresh_data()
 
 #-------------------------------------------------------------------------------
 # Generate various HTML elements
@@ -255,14 +250,6 @@ def new_opportunity():
     # Only use this for debugging. It allows to run only a specific section of the code.
     )#, Button("Debug", hx_post="/debug", hx_target="#opportunity_list", hx_swap="outerHTML"))
 
-# Generate a table of contents from the article
-def generate_toc(article):
-    toc = []
-    for line in article.splitlines():
-        if line.startswith("#"):
-            toc.append(Ul(line))
-    return Div(*toc)
-
 def opportunity_card(t):
     return Card(
         Div(AX(t["name"], f'/opportunity/{t["id"]}', hx_target="#article", hx_swap='outerHTML'),
@@ -271,6 +258,8 @@ def opportunity_card(t):
     )
 
 def table_of_contents(t):
+    if t["article"] == "":
+        return Div(" ", id="table_of_contents", style="width: 25%;", hx_swap_oob='true')
     toc = []
     for line in t["article"].splitlines():
         if line.startswith("#"):
@@ -282,6 +271,8 @@ def table_of_contents(t):
     return Div(H2("Table of Contents"), Ul(Div(*toc)), id="table_of_contents", style="width: 25%;", hx_swap_oob='true')
 
 def article(t):
+    if t["article"] == "":
+        return Div(H2("...Article under construction..."), id="article", style="width: 75%;", hx_swap_oob="true")
     content = [H1(t["name"])]
     # Construct the article with the structure of the markdown
     for line in t["article"].splitlines():
@@ -318,6 +309,8 @@ def brainstorming_process(hidden=True):
     return bsp
 
 def personas(t, selected_persona=None):
+    if t["conversation_log"] == {}:
+        return Div("No conversation log available", id="personas", style="display: flex; flex-direction: row; gap: 10px; width: 100%; justify-content: space-between;", hx_swap_oob="true")
     conversations = DemoTextProcessingHelper.parse_conversation_history(t["conversation_log"])
     personas = [name for (name, _, _) in conversations]
     width_percent = f"calc({100/len(personas)}% - 10px)"
@@ -415,6 +408,8 @@ def format_citations_as_list(citations_dict):
     )
 
 def citations(t):
+    if t['citations'] == []:
+        return Div("No citations available", id="citations", style="display: flex; flex-direction: row; gap: 10px; width: 100%; justify-content: space-between;", hx_swap_oob="true")
     citations_dict = t['citations']
     return format_citations_as_list(citations_dict)
 
@@ -430,7 +425,7 @@ def citations_list(hidden=True):
 #-------------------------------------------------------------------------------
 
 def home():
-    refresh_data(clean_database=True)
+    refresh_data()
     title = "Investment Opportunity Analyzer"
     content = Div(
                 Div(brainstorming_process(hidden=True)),
@@ -484,14 +479,16 @@ status_text = {
 def post(opportunity_name: str):
     pass_appropriateness_check = True
     opportunity_id = name_to_id(opportunity_name)
-    if opportunity_id not in generation_status:
-        generation_status[opportunity_id] = 'not started'
-    if opportunity_name.strip() == "":
-        pass_appropriateness_check = False
-    if pass_appropriateness_check:
-        generation_status[opportunity_id] = 'initiated'
+    if not(pass_appropriateness_check):
+        return Div("Opportunity name is not appropriate")
     with get_db_connection() as db:
-        db.t.opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name))
+        opportunities = db.t.opportunities
+        Opportunities = opportunities.dataclass()
+        if opportunities[opportunity_id] is None:
+            db.t.opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, status='initiated'))
+        else:
+            if opportunities[opportunity_id].status == 'complete':
+                return Div("Report generation already done!")
     run_workflow(opportunity_name, opportunity_id)
     global preview_exists
     preview_exists = None
@@ -499,14 +496,14 @@ def post(opportunity_name: str):
 
 def generation_preview(opportunity_id):
     global preview_exists
-    if generation_status[opportunity_id] == 'complete':
+    if get_status(opportunity_id) == 'complete':
         return (
             opportunity_generated,
             new_opportunity(),
             show_opportunity(opportunity_id)
         )
     else:
-        status = generation_status[opportunity_id]
+        status = get_status(opportunity_id)
         # First time the opportunity is being generated, it does not exist yet in the DOM
         if not preview_exists:
             preview_exists = True
@@ -522,11 +519,11 @@ def post(opportunity_id: str):
 @threaded
 def run_workflow(opportunity_name, opportunity_id):
     # Initiate the workflow
-    if generation_status[opportunity_id] == 'initiated':
+    if get_status(opportunity_id) == 'initiated':
         demo_util.set_storm_runner()
-        generation_status[opportunity_id] = 'pre_writing'
+        set_status(opportunity_id, 'pre_writing')
     # Pre-writing
-    if generation_status[opportunity_id] == 'pre_writing':
+    if get_status(opportunity_id) == 'pre_writing':
         runner = set_storm_runner()
         runner.run(
             opportunity=opportunity_name,
@@ -537,9 +534,9 @@ def run_workflow(opportunity_name, opportunity_id):
             do_polish_article=False,
             #callback_handler=BaseCallbackHandler() # TODO: add callback handler
         )
-        generation_status[opportunity_id] = 'final_writing'
+        set_status(opportunity_id, 'final_writing')
     # Final writing
-    if generation_status[opportunity_id] == 'final_writing':
+    if get_status(opportunity_id) == 'final_writing':
         runner.run(
             opportunity=opportunity_name,
             opportunity_id=opportunity_id,
@@ -558,7 +555,7 @@ def run_workflow(opportunity_name, opportunity_id):
         opportunity = next((item for item in table if item['id'].lower() == opportunity_id.lower()), None)
         global opportunity_generated
         opportunity_generated = opportunity_card(opportunity)
-        generation_status[opportunity_id] = 'complete'
+        set_status(opportunity_id, 'complete')
         preview_exists = None
 
     return opportunity_generated

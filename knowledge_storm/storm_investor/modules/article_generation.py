@@ -110,8 +110,6 @@ class StormArticleGenerationModule(ArticleGenerationModule):
                 print("\n=== Environment Variables ===")
                 thread_related = {k:v for k,v in os.environ.items() if 'THREAD' in k.upper()}
                 print(f"Thread-related env vars: {thread_related}")
-                print("\n=== All Environment Variables ===")
-                print(dict(os.environ))
                 print("\n=== Active Threads ===")
                 for thread in threading.enumerate():
                     print(f"Thread: {thread.name} ({thread.ident})")
