@@ -260,6 +260,7 @@ def opportunity_card(t):
 def table_of_contents(t):
     if t["article"] == "":
         return Div(" ", id="table_of_contents", style="width: 25%;", hx_swap_oob='true')
+    toc_depth = 1
     toc = []
     for line in t["article"].splitlines():
         if line.startswith("#"):
@@ -267,7 +268,8 @@ def table_of_contents(t):
             title = line.strip("# ").strip()
             anchor = create_anchor(title)
             style = f"margin-left: {(level-1) * 20}px"
-            toc.append(Li(AX(title, href=f'#{anchor}', style=style)))
+            if level <= toc_depth:
+                toc.append(Li(AX(title, href=f'#{anchor}', style=style)))
     return Div(H2("Table of Contents"), Ul(Div(*toc)), id="table_of_contents", style="width: 25%;", hx_swap_oob='true')
 
 def article(t):
@@ -427,9 +429,9 @@ def citations_list(hidden=True):
 def home():
     refresh_data()
     title = "Investment Opportunity Analyzer"
-    content = Div(
+    main_content = Div(
                 Div(brainstorming_process(hidden=True)),
-                Div(citations_list(hidden=True)),
+                # Div(citations_list(hidden=True)), # Hide the citations list for now (see search api license)
                 Div(
                     Div(id='table_of_contents', style="width: 25%;"),
                     Div(id='article', style="width: 75%;"),
@@ -437,10 +439,9 @@ def home():
                 )
             )
 
-    cards = Card(Div(*[opportunity_card(t) for t in table],
-            id='opportunity_list',
-            cls="grid"), content, header=new_opportunity())
-    return Titled(title, cards)
+    cards = Div(*[opportunity_card(t) for t in table], id='opportunity_list', cls="grid")
+    content = new_opportunity(), Card(cards, main_content)
+    return Titled(title, content)
 
 
 @rt("/")
