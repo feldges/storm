@@ -48,6 +48,9 @@ hdrs = (MarkdownJS(), Style(scroll_behaviour))#, scripts, link_daisyui, link_pic
 
 app, rt = fast_app(pico=True, hdrs=hdrs)
 
+info_card_style = "word-wrap: break-word; overflow-wrap: break-word; white-space: normal; color: #1976d2; background-color: #e3f2fd; border-radius: 4px"
+error_card_style = "word-wrap: break-word; overflow-wrap: break-word; white-space: normal; color: #d32f2f; background-color: #ffebee; border-radius: 4px"
+
 # Read data from the source directory and return a dictionary under table
 # Deprecated - will be removed but the local_dir is still used in the code (while inactive),
 # So it was decided to keep it for now.
@@ -254,15 +257,14 @@ def new_opportunity():
     oppo_name, oppo_status = get_overall_status()
     if oppo_name is not None:
         return Card(
-            #Div(
-            Div(f"Currently working on the opportunity ", B(oppo_name), f" ({status_text[oppo_status]}). You have to wait for it to finish before you can start a new one."),
-            # Add automatic refresh every 5 seconds if status is not complete
+            f"Currently working on the opportunity ", B(oppo_name), f" ({status_text[oppo_status]}). You have to wait for it to finish before you can start a new one.",
+            aria_busy="true",
+            style=info_card_style,
             hx_get="/new_opportunity",
             hx_trigger="every 5s",
             hx_swap_oob="true",
             id="new_opportunity"
-            # Only use this for debugging. It allows to run only a specific section of the code.
-            )#, Button("Debug", hx_post="/debug", hx_target="#opportunity_list", hx_swap="outerHTML"))
+        )
     else:
         return Card(
             #Div(
@@ -517,12 +519,13 @@ def post(opportunity_name: str):
         return None, Card(
             Form(
                 Div(
-                    Div(f"You need to enter an investment opportunity name.", style="flex: 1;"),
+                    Div(f"You need to enter an investment opportunity name. Click on 'Try again' and enter a name.", style="flex: 1;"),
                     Button("Try again", hx_get="/new_opportunity"),
                     style="display: flex; justify-content: space-between; align-items: center;"
                 ),
                 hx_target="#new_opportunity"
             ),
+            style=error_card_style,
             id="new_opportunity",
             hx_swap_oob="true"
         )
@@ -537,12 +540,13 @@ def post(opportunity_name: str):
             return None, Card(
             Form(
                 Div(
-                    Div(f"An investment memo for ", B(opportunity_name), " already exists.", style="flex: 1;"),
+                    Div(f"An investment memo for ", B(opportunity_name), " already exists. Click on 'Try again' and enter a different name.", style="flex: 1;"),
                     Button("Try again", hx_get="/new_opportunity"),
                     style="display: flex; justify-content: space-between; align-items: center;"
                 ),
                 hx_target="#new_opportunity"
             ),
+            style=error_card_style,
             id="new_opportunity",
             hx_swap_oob="true"
         )
@@ -558,7 +562,7 @@ def post(opportunity_name: str):
             opportunity_exists = True
             status = opportunities[opportunity_id].status
             if status == 'complete':
-                return None, Card(status_text[status], id="new_opportunity", hx_swap_oob="true")
+                return None, Card(status_text[status], style=info_card_style, id="new_opportunity", hx_swap_oob="true")
         except NotFoundError:
             opportunity_exists = False
             db.t.opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, status='initiated'))
@@ -581,10 +585,10 @@ def generation_preview(opportunity_id):
         # First time the opportunity is being generated, it does not exist yet in the DOM
         if not preview_exists and not opportunity_exists:
             preview_exists = True
-            return Card(Div("In progress..."), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='load once', hx_swap='afterbegin', hx_target="#opportunity_list"), Card(status_text[status], id="new_opportunity", hx_swap_oob="true")
+            return Card(Div("In progress...", aria_busy="true"), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='load once', hx_swap='afterbegin', hx_target="#opportunity_list"), Card(status_text[status], style=info_card_style, aria_busy="true", id="new_opportunity", hx_swap_oob="true")
         # If the opportunity is already in the DOM, we update it
         else:
-            return Card(Div("In progress..."), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='every 5s', hx_swap='outerHTML', hx_target=f"#opportunity_{opportunity_id}", hx_swap_oob="true"), Card(status_text[status], id="new_opportunity", hx_swap_oob="true")
+            return Card(Div("In progress...", aria_busy="true"), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='every 5s', hx_swap='outerHTML', hx_target=f"#opportunity_{opportunity_id}", hx_swap_oob="true"), Card(status_text[status], style=info_card_style, aria_busy="true", id="new_opportunity", hx_swap_oob="true")
 
 @rt("/generation_preview")
 def post(opportunity_id: str):
