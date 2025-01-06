@@ -22,9 +22,14 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 ydc_api_key = os.getenv("YDC_API_KEY")
 
-scroll_behaviour = """
+app_styles = """
 html {
     scroll-behavior: smooth;
+}
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
 }
 .persona-card {
     box-sizing: border-box;
@@ -43,8 +48,36 @@ html {
 h3, h4 {
     margin-top: 1rem;  /* Reduce from default 2.5rem */
 }
+.opportunity-card {
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+    padding: 1rem;
+}
+.opportunity-card:hover {
+    background-color: #f0f0f0;
+    transform: translateY(-2px);
+}
+.opportunity-card.selected {
+    background: #e3f2fd;
+}
+.opportunity-card h4 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+}
+.opportunity-card p {
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+input {
+    max-width: 100%;  /* Prevent input from overflowing its container */
+    box-sizing: border-box;  /* Include padding and border in width calculation */
+}
 """
-hdrs = (MarkdownJS(), Style(scroll_behaviour))#, scripts, link_daisyui, link_pico)
+hdrs = (MarkdownJS(), Style(app_styles))#, scripts, link_daisyui, link_pico)
 
 app, rt = fast_app(pico=True, hdrs=hdrs)
 
@@ -269,21 +302,27 @@ def new_opportunity():
         return Card(
             #Div(
             Form(
+                Label("Enter the investment opportunity you want to write an investment memo for:"),
                 Group(
-                    Label("Enter the investment opportunity you want to write an investment memo for:"),
-                    Input(name="opportunity_name", placeholder="New Investment Opportunity (e.g. 'Roche, a Swiss healthcare company')"),
+                    Input(name="opportunity_name", placeholder="Roche, Swiss healthcare"),
                     Button("Start")
-                ), hx_post="/", target_id="opportunity_list", hx_swap="afterbegin"
+                ),
+                hx_post="/", target_id="opportunity_list", hx_swap="afterbegin"
             ),
         hx_swap_oob="true",
         id="new_opportunity"
     # Only use this for debugging. It allows to run only a specific section of the code.
     )#, Button("Debug", hx_post="/debug", hx_target="#opportunity_list", hx_swap="outerHTML"))
 
-def opportunity_card(t):
+def opportunity_card(t, selected=False):
     return Card(
-        Div(AX(t["name"], f'/opportunity/{t["id"]}', hx_target="#article", hx_swap='outerHTML')),
-        P(t["article"][:100]+"..."),
+        H4(t["name"]),
+        P(t["article"]),
+        cls=f"opportunity-card {'selected' if selected else ''}",
+        hx_get=f'/opportunity/{t["id"]}',
+        hx_target="#article",
+        hx_swap='outerHTML',
+        onclick="document.querySelectorAll('.opportunity-card').forEach(card => card.classList.remove('selected')); this.classList.add('selected')",
         id=f'opportunity_{t["id"]}'
     )
 
@@ -461,6 +500,7 @@ def citations_list(hidden=True):
 def home():
     refresh_data()
     title = "Investment Opportunity Analyzer"
+    cards = Div(*[opportunity_card(t) for t in table], id='opportunity_list', cls="grid")
     main_content = Div(
                 Div(brainstorming_process(hidden=True)),
                 # Div(citations_list(hidden=True)), # Hide the citations list for now (see search api license)
@@ -471,7 +511,6 @@ def home():
                 )
             )
 
-    cards = Div(*[opportunity_card(t) for t in table], id='opportunity_list', cls="grid")
     content = new_opportunity(), Card(cards, main_content)
     return Titled(title, content)
 
