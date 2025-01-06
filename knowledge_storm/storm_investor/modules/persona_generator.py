@@ -117,7 +117,7 @@ class StormPersonaGenerator:
 
     This class uses an underlying engine to generate personas tailored to the specified investment opportunity.
     The generator integrates with a `CreateWriterWithPersona` instance to create diverse personas,
-    including a default 'Basic fact writer' persona.
+    including a default 'Basic Fact Writer' persona.
 
     Attributes:
         create_writer_with_persona (CreateWriterWithPersona): An instance responsible for
@@ -136,19 +136,19 @@ class StormPersonaGenerator:
         Generates a list of personas based on the provided investment opportunity, up to a maximum number specified.
 
         This method first creates personas using the underlying `create_writer_with_persona` instance
-        and then prepends a default 'Basic fact writer' persona to the list before returning it.
+        and then prepends a default 'Basic Fact Writer' persona to the list before returning it.
         The number of personas returned is limited to `max_num_persona`, excluding the default persona.
 
         Args:
             opportunity (str): The investment opportunity for which personas are to be generated, typically a company name or a company name with a short description (as a one-liner).
             max_num_persona (int): The maximum number of personas to generate, excluding the
-                default 'Basic fact writer' persona.
+                default 'Basic Fact Writer' persona.
 
         Returns:
-            List[str]: A list of persona descriptions, including the default 'Basic fact writer' persona
+            List[str]: A list of persona descriptions, including the default 'Basic Fact Writer' persona
                 and up to `max_num_persona` additional personas generated based on the investment opportunity.
         """
         personas = self.create_writer_with_persona(opportunity=opportunity)
-        default_persona = "Basic fact writer: Basic fact writer focusing on broadly covering the basic facts about the investment opportunity."
+        default_persona = "Basic Fact Writer: Basic Fact Writer focusing on broadly covering the basic facts about the investment opportunity."
         considered_personas = [default_persona] + personas.personas[:max_num_persona]
         return considered_personas

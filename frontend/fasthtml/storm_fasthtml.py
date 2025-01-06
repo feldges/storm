@@ -5,6 +5,7 @@ import os
 import re
 import json
 from dotenv import load_dotenv
+import unicodedata
 from collections import defaultdict
 
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'demo_light'))
@@ -38,6 +39,9 @@ html {
 }
 .persona-card.selected {
     background: #e3f2fd;
+}
+h3, h4 {
+    margin-top: 1rem;  /* Reduce from default 2.5rem */
 }
 """
 hdrs = (MarkdownJS(), Style(scroll_behaviour))#, scripts, link_daisyui, link_pico)
@@ -80,11 +84,12 @@ def set_storm_runner():
 
 # Define helper functions
 #-------------------------------------------------------------------------------
-def clean_name(name):
-    return name.replace("_", " ")
-
 def name_to_id(name):
-    return name.replace(" ", "_").replace('/', '_')
+    # First convert accented characters to their ASCII equivalents
+    normalized_name = unicodedata.normalize('NFKD', name).encode('ASCII', 'ignore').decode('ASCII')
+    # Replace remaining special characters with underscore
+    clean_id = re.sub(r'[^a-zA-Z0-9]+', '_', normalized_name.strip())
+    return clean_id.strip('_').lower()
 
 # The article starts sometimes with a # summary, which we do not want to render.
 # If it starts with another topic with a title #, then we want to render it but need a \n before it.
@@ -209,6 +214,16 @@ def get_table():
             table.append(d)
     return data, table
 
+def get_overall_status():
+    with get_db_connection() as db:
+        opportunities = db.t.opportunities
+        Opportunities = opportunities.dataclass()
+        in_progress = opportunities(where="status!='complete'")
+        if in_progress and len(in_progress) > 0:
+            oppo_in_progress = in_progress[0]
+            return oppo_in_progress.name, oppo_in_progress.status
+    return None, "complete"
+
 def refresh_data():
     global data, table
     data, table = get_table()
@@ -236,15 +251,28 @@ data, table = refresh_data()
 #-------------------------------------------------------------------------------
 
 def new_opportunity():
-    return Div(
-        #Div(
-        Form(
-            Group(
-                Label("Enter the investment opportunity you want to write an investment memo for:"),
-                Input(name="opportunity_name", placeholder="New Investment Opportunity (e.g. 'Roche, a Swiss healthcare company')"),
-                Button("Start")
-            ), hx_post="/", target_id="opportunity_list", hx_swap="afterbegin"
-        ),
+    oppo_name, oppo_status = get_overall_status()
+    if oppo_name is not None:
+        return Card(
+            #Div(
+            Div(f"Currently working on the opportunity ", B(oppo_name), f" ({status_text[oppo_status]}). You have to wait for it to finish before you can start a new one."),
+            # Add automatic refresh every 5 seconds if status is not complete
+            hx_get="/new_opportunity",
+            hx_trigger="every 5s",
+            hx_swap_oob="true",
+            id="new_opportunity"
+            # Only use this for debugging. It allows to run only a specific section of the code.
+            )#, Button("Debug", hx_post="/debug", hx_target="#opportunity_list", hx_swap="outerHTML"))
+    else:
+        return Card(
+            #Div(
+            Form(
+                Group(
+                    Label("Enter the investment opportunity you want to write an investment memo for:"),
+                    Input(name="opportunity_name", placeholder="New Investment Opportunity (e.g. 'Roche, a Swiss healthcare company')"),
+                    Button("Start")
+                ), hx_post="/", target_id="opportunity_list", hx_swap="afterbegin"
+            ),
         hx_swap_oob="true",
         id="new_opportunity"
     # Only use this for debugging. It allows to run only a specific section of the code.
@@ -285,11 +313,11 @@ def article(t):
             title = line.strip("# ").strip()
             anchor = create_anchor(title)
             if level == 1:
-                content.append(H1(title, id=anchor))
-            elif level == 2:
                 content.append(H2(title, id=anchor))
-            elif level == 3:
+            elif level == 2:
                 content.append(H3(title, id=anchor))
+            elif level == 3:
+                content.append(H4(title, id=anchor))
             else:
                 content.append(P(title, id=anchor))
         else:
@@ -314,10 +342,12 @@ def personas(t, selected_persona=None):
     if t["conversation_log"] == {}:
         return Div("No conversation log available", id="personas", style="display: flex; flex-direction: row; gap: 10px; width: 100%; justify-content: space-between;", hx_swap_oob="true")
     conversations = DemoTextProcessingHelper.parse_conversation_history(t["conversation_log"])
-    personas = [name for (name, _, _) in conversations]
-    width_percent = f"calc({100/len(personas)}% - 10px)"
+    persona_names = [name for (name, _, _) in conversations]
+    # Sort personas: "Basic Fact Writer" first, others alphabetically
+    sorted_personas = sorted(persona_names, key=lambda x: (x.lower() != "basic fact writer", x))
+    width_percent = f"calc({100/len(sorted_personas)}% - 10px)"
     personas_style = f"flex: 0 0 {width_percent}"
-    personas = [Card(H4(persona), style=personas_style, cls=f"persona-card {'selected' if persona == selected_persona else ''}", hx_get=f"/conversation/{persona}?opportunity_id={t['id']}", hx_target="#conversation", hx_swap="outerHTML") for persona in personas]
+    personas = [Card(H4(persona), style=personas_style, cls=f"persona-card {'selected' if persona == selected_persona else ''}", hx_get=f"/conversation/{persona}?opportunity_id={t['id']}", hx_target="#conversation", hx_swap="outerHTML") for persona in sorted_personas]
     return Div(*personas, id="personas", style="display: flex; flex-direction: row; gap: 10px; width: 100%; justify-content: space-between;", hx_swap_oob="true")
 
 
@@ -476,12 +506,49 @@ status_text = {
     'complete': "Report generation done!"
 }
 
+@rt("/new_opportunity")
+def get():
+    return new_opportunity()
+
 @rt("/")
 def post(opportunity_name: str):
-    pass_appropriateness_check = True
+    if opportunity_name == "":
+        pass_appropriateness_check = False
+        return None, Card(
+            Form(
+                Div(
+                    Div(f"You need to enter an investment opportunity name.", style="flex: 1;"),
+                    Button("Try again", hx_get="/new_opportunity"),
+                    style="display: flex; justify-content: space-between; align-items: center;"
+                ),
+                hx_target="#new_opportunity"
+            ),
+            id="new_opportunity",
+            hx_swap_oob="true"
+        )
     opportunity_id = name_to_id(opportunity_name)
-    if not(pass_appropriateness_check):
-        return Div("Opportunity name is not appropriate")
+
+    # Check if opportunity already exists
+    with get_db_connection() as db:
+        opportunities = db.t.opportunities
+        try:
+            opportunities[opportunity_id]
+            pass_appropriateness_check = False  # Opportunity already exists
+            return None, Card(
+            Form(
+                Div(
+                    Div(f"An investment memo for ", B(opportunity_name), " already exists.", style="flex: 1;"),
+                    Button("Try again", hx_get="/new_opportunity"),
+                    style="display: flex; justify-content: space-between; align-items: center;"
+                ),
+                hx_target="#new_opportunity"
+            ),
+            id="new_opportunity",
+            hx_swap_oob="true"
+        )
+        except NotFoundError:
+            pass_appropriateness_check = True   # New opportunity
+
     global opportunity_exists
     with get_db_connection() as db:
         opportunities = db.t.opportunities
@@ -491,7 +558,7 @@ def post(opportunity_name: str):
             opportunity_exists = True
             status = opportunities[opportunity_id].status
             if status == 'complete':
-                return None, Div(status_text[status], id="new_opportunity", hx_swap_oob="true")
+                return None, Card(status_text[status], id="new_opportunity", hx_swap_oob="true")
         except NotFoundError:
             opportunity_exists = False
             db.t.opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, status='initiated'))
@@ -514,10 +581,10 @@ def generation_preview(opportunity_id):
         # First time the opportunity is being generated, it does not exist yet in the DOM
         if not preview_exists and not opportunity_exists:
             preview_exists = True
-            return Card(Div("In progress..."), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='load once', hx_swap='afterbegin', hx_target="#opportunity_list"), Div(status_text[status], id="new_opportunity", hx_swap_oob="true")
+            return Card(Div("In progress..."), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='load once', hx_swap='afterbegin', hx_target="#opportunity_list"), Card(status_text[status], id="new_opportunity", hx_swap_oob="true")
         # If the opportunity is already in the DOM, we update it
         else:
-            return Card(Div("In progress..."), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='every 5s', hx_swap='outerHTML', hx_target=f"#opportunity_{opportunity_id}", hx_swap_oob="true"), Div(status_text[status], id="new_opportunity", hx_swap_oob="true")
+            return Card(Div("In progress..."), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='every 5s', hx_swap='outerHTML', hx_target=f"#opportunity_{opportunity_id}", hx_swap_oob="true"), Card(status_text[status], id="new_opportunity", hx_swap_oob="true")
 
 @rt("/generation_preview")
 def post(opportunity_id: str):
