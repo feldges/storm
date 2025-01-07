@@ -116,6 +116,7 @@ input {
     margin-left: 2rem;
 }
 """
+
 hdrs = (MarkdownJS(), Style(app_styles))#, scripts, link_daisyui, link_pico)
 
 app, rt = fast_app(pico=True, hdrs=hdrs)
@@ -343,7 +344,7 @@ def new_opportunity():
             Form(
                 Label("Enter the investment opportunity you want to write an investment memo for:"),
                 Group(
-                    Input(name="opportunity_name", placeholder="Roche, Swiss healthcare"),
+                    Input(name="opportunity_name", placeholder="e.g. Roche, Swiss healthcare"),
                     Button("Start")
                 ),
                 hx_post="/", target_id="opportunity_list", hx_swap="afterbegin"
@@ -358,7 +359,7 @@ def opportunity_card(t, selected=False):
         H4(t["name"]),
         P(t["article"]),
         cls=f"opportunity-card {'selected' if selected else ''}",
-        hx_get=f'/opportunity/{t["id"]}',
+        hx_get=f'/opportunity/{t["id"]}#main_wrapper',
         hx_target="#article",
         hx_swap='outerHTML',
         id=f'opportunity_{t["id"]}',
@@ -377,17 +378,17 @@ def table_of_contents(t):
             anchor = create_anchor(title)
             if level <= toc_depth:
                 toc.append(Li(
-                    AX(title, 
-                       href=f'#{anchor}', 
+                    AX(title,
+                       href=f'#{anchor}',
                        cls=f'toc-level-{level}',
                        style="text-decoration: none !important; color: #1976d2 !important;"),
                     style="list-style-type: none !important;"
                 ))
     return Div(
-        H2("Table of Contents"), 
-        Ul(*toc, style="list-style-type: none !important; padding-left: 0 !important;"), 
-        id="table_of_contents", 
-        style="width: 25%;", 
+        H2("Table of Contents"),
+        Ul(*toc, style="list-style-type: none !important; padding-left: 0 !important;"),
+        id="table_of_contents",
+        style="width: 25%;",
         hx_swap_oob='true'
     )
 
@@ -432,25 +433,25 @@ def brainstorming_process(hidden=True):
 def personas(t, selected_persona=None):
     if t["conversation_log"] == {}:
         return Div("No conversation log available", id="personas", hx_swap_oob="true")
-    
+
     conversations = DemoTextProcessingHelper.parse_conversation_history(t["conversation_log"])
     persona_names = [name for (name, _, _) in conversations]
     # Sort personas: "Basic Fact Writer" first, others alphabetically
     sorted_personas = sorted(persona_names, key=lambda x: (x.lower() != "basic fact writer", x))
-    
+
     personas = [
         Card(
-            H4(persona), 
-            cls=f"persona-card {'selected' if persona == selected_persona else ''}", 
-            hx_get=f"/conversation/{persona}?opportunity_id={t['id']}", 
-            hx_target="#conversation", 
+            H4(persona),
+            cls=f"persona-card {'selected' if persona == selected_persona else ''}",
+            hx_get=f"/conversation/{persona}?opportunity_id={t['id']}#conversation",
+            hx_target="#conversation",
             hx_swap="outerHTML"
         ) for persona in sorted_personas
     ]
-    
+
     return Div(
-        *personas, 
-        id="personas", 
+        *personas,
+        id="personas",
         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;", 
         hx_swap_oob="true"
     )
@@ -573,8 +574,8 @@ def home():
                     Div(id='article', style="width: 75%;"),
                     style="display: flex; flex-direction: row; gap: 20px; width: 100%;",
                     cls="content-wrapper"
-                )
-            )
+                ),
+            id="main_wrapper")
 
     content = new_opportunity(), Card(cards, main_content)
     return Titled(title, content)
