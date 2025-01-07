@@ -76,6 +76,45 @@ input {
     max-width: 100%;  /* Prevent input from overflowing its container */
     box-sizing: border-box;  /* Include padding and border in width calculation */
 }
+
+/* Add these new styles */
+@media (max-width: 1200px) {
+    .content-wrapper {
+        flex-direction: column !important;
+    }
+
+    #table_of_contents {
+        display: none !important;
+    }
+
+    #article {
+        width: 100% !important;
+    }
+}
+
+/* Add these new styles for table of contents */
+#table_of_contents ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+#table_of_contents a {
+    text-decoration: none;
+    color: #1976d2;
+    transition: color 0.2s;
+}
+
+#table_of_contents a:hover {
+    color: #1565c0;
+}
+
+/* Existing TOC level styles */
+.toc-level-2 {
+    margin-left: 1rem;
+}
+.toc-level-3 {
+    margin-left: 2rem;
+}
 """
 hdrs = (MarkdownJS(), Style(app_styles))#, scripts, link_daisyui, link_pico)
 
@@ -336,10 +375,21 @@ def table_of_contents(t):
             level = line.count("#")
             title = line.strip("# ").strip()
             anchor = create_anchor(title)
-            style = f"margin-left: {(level-1) * 20}px"
             if level <= toc_depth:
-                toc.append(Li(AX(title, href=f'#{anchor}', style=style)))
-    return Div(H2("Table of Contents"), Ul(Div(*toc)), id="table_of_contents", style="width: 25%;", hx_swap_oob='true')
+                toc.append(Li(
+                    AX(title, 
+                       href=f'#{anchor}', 
+                       cls=f'toc-level-{level}',
+                       style="text-decoration: none !important; color: #1976d2 !important;"),
+                    style="list-style-type: none !important;"
+                ))
+    return Div(
+        H2("Table of Contents"), 
+        Ul(*toc, style="list-style-type: none !important; padding-left: 0 !important;"), 
+        id="table_of_contents", 
+        style="width: 25%;", 
+        hx_swap_oob='true'
+    )
 
 def article(t):
     if t["article"] == "":
@@ -507,7 +557,8 @@ def home():
                 Div(
                     Div(id='table_of_contents', style="width: 25%;"),
                     Div(id='article', style="width: 75%;"),
-                    style="display: flex; flex-direction: row; gap: 20px; width: 100%;"
+                    style="display: flex; flex-direction: row; gap: 20px; width: 100%;",
+                    cls="content-wrapper"
                 )
             )
 
