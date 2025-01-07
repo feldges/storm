@@ -431,15 +431,29 @@ def brainstorming_process(hidden=True):
 
 def personas(t, selected_persona=None):
     if t["conversation_log"] == {}:
-        return Div("No conversation log available", id="personas", style="display: flex; flex-direction: row; gap: 10px; width: 100%; justify-content: space-between;", hx_swap_oob="true")
+        return Div("No conversation log available", id="personas", hx_swap_oob="true")
+    
     conversations = DemoTextProcessingHelper.parse_conversation_history(t["conversation_log"])
     persona_names = [name for (name, _, _) in conversations]
     # Sort personas: "Basic Fact Writer" first, others alphabetically
     sorted_personas = sorted(persona_names, key=lambda x: (x.lower() != "basic fact writer", x))
-    width_percent = f"calc({100/len(sorted_personas)}% - 10px)"
-    personas_style = f"flex: 0 0 {width_percent}"
-    personas = [Card(H4(persona), style=personas_style, cls=f"persona-card {'selected' if persona == selected_persona else ''}", hx_get=f"/conversation/{persona}?opportunity_id={t['id']}", hx_target="#conversation", hx_swap="outerHTML") for persona in sorted_personas]
-    return Div(*personas, id="personas", style="display: flex; flex-direction: row; gap: 10px; width: 100%; justify-content: space-between;", hx_swap_oob="true")
+    
+    personas = [
+        Card(
+            H4(persona), 
+            cls=f"persona-card {'selected' if persona == selected_persona else ''}", 
+            hx_get=f"/conversation/{persona}?opportunity_id={t['id']}", 
+            hx_target="#conversation", 
+            hx_swap="outerHTML"
+        ) for persona in sorted_personas
+    ]
+    
+    return Div(
+        *personas, 
+        id="personas", 
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;", 
+        hx_swap_oob="true"
+    )
 
 
 # Define avatars for the robot
