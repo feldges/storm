@@ -322,8 +322,8 @@ def opportunity_card(t, selected=False):
         hx_get=f'/opportunity/{t["id"]}',
         hx_target="#article",
         hx_swap='outerHTML',
-        onclick="document.querySelectorAll('.opportunity-card').forEach(card => card.classList.remove('selected')); this.classList.add('selected')",
-        id=f'opportunity_{t["id"]}'
+        id=f'opportunity_{t["id"]}',
+        hx_swap_oob="true"
     )
 
 def table_of_contents(t):
@@ -521,14 +521,23 @@ def get():
 
 @rt("/opportunity/{opportunity_id}")
 def get(opportunity_id: str):
-    return show_opportunity(opportunity_id)
-
-def show_opportunity(opportunity_id: str):
-    # Find the table entry where the 'id' matches the requested id
+    # Find the opportunity
     opportunity = next((item for item in table if str(item['id']).lower() == str(opportunity_id).lower()), None)
     if opportunity is None:
         return "Opportunity not found"
-    return table_of_contents(opportunity), article(opportunity), brainstorming_process(hidden=False), personas(opportunity), citations_list(hidden=False), citations(opportunity)
+
+    # Return both the article content and ALL cards (with appropriate selection states)
+    return (
+        table_of_contents(opportunity),
+        article(opportunity),
+        brainstorming_process(hidden=False),
+        personas(opportunity),
+        citations_list(hidden=False),
+        citations(opportunity),
+        # This is the list of all cards, with the correct selection state. It is neededd to adjust the selection state of the card that was clicked on
+        *[opportunity_card(t, selected=(str(t['id']).lower() == str(opportunity_id).lower())) 
+          for t in table]
+    )
 
 @rt("/conversation/{persona}")
 def get(opportunity_id: str, persona: str):
