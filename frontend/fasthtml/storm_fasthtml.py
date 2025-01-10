@@ -298,8 +298,8 @@ def get_overall_status():
         in_progress = opportunities(where="status!='complete'")
         if in_progress and len(in_progress) > 0:
             oppo_in_progress = in_progress[0]
-            return oppo_in_progress.name, oppo_in_progress.status
-    return None, "complete"
+            return oppo_in_progress.id, oppo_in_progress.name, oppo_in_progress.status
+    return None, None, "complete"
 
 def refresh_data():
     global data, table
@@ -326,10 +326,33 @@ data, table = refresh_data()
 #-------------------------------------------------------------------------------
 # Generate various HTML elements
 #-------------------------------------------------------------------------------
-
+oppo_id, oppo_name, oppo_status = None, None, "complete"
 def new_opportunity():
-    oppo_name, oppo_status = get_overall_status()
-    if oppo_name is not None:
+    global oppo_id, oppo_name, oppo_status
+    previous_oppo_id = oppo_id
+    oppo_id, oppo_name, oppo_status = get_overall_status()
+    print("previous_oppo_id", previous_oppo_id)
+    print("oppo_id", oppo_id)
+    if oppo_id is None:
+        if previous_oppo_id is not None:
+            print("Triggering the opportunity")
+            show_opportunity(previous_oppo_id)
+        else:
+            print("New opportunity")
+            return Card(
+                Form(
+                    Label("Enter the investment opportunity you want to write an investment memo for:"),
+                    Group(
+                        Input(name="opportunity_name", placeholder="e.g. Roche, Swiss healthcare"),
+                        Button("Start")
+                    ),
+                    hx_post="/", target_id="opportunity_list", hx_swap="afterbegin"
+                ),
+                hx_swap_oob="true",
+                id="new_opportunity"
+                )
+    else:
+        print("Currently...")
         return Card(
             f"Currently working on the opportunity ", B(oppo_name), f" ({status_text[oppo_status]}). You have to wait for it to finish before you can start a new one.",
             aria_busy="true",
@@ -339,26 +362,12 @@ def new_opportunity():
             hx_swap_oob="true",
             id="new_opportunity"
         )
-    else:
-        return Card(
-            #Div(
-            Form(
-                Label("Enter the investment opportunity you want to write an investment memo for:"),
-                Group(
-                    Input(name="opportunity_name", placeholder="e.g. Roche, Swiss healthcare"),
-                    Button("Start")
-                ),
-                hx_post="/", target_id="opportunity_list", hx_swap="afterbegin"
-            ),
-        hx_swap_oob="true",
-        id="new_opportunity"
-    # Only use this for debugging. It allows to run only a specific section of the code.
-    )#, Button("Debug", hx_post="/debug", hx_target="#opportunity_list", hx_swap="outerHTML"))
+
 
 def opportunity_card(t, selected=False):
     return Card(
         H4(t["name"]),
-        P(t["article"]),
+        P(t["article"][20:] if t["article"][:20].lower() == '\n# executive summary' else t["article"]),
         cls=f"opportunity-card {'selected' if selected else ''}",
         hx_get=f'/opportunity/{t["id"]}#main_wrapper',
         hx_target="#article",
@@ -588,6 +597,9 @@ def get():
 
 @rt("/opportunity/{opportunity_id}")
 def get(opportunity_id: str):
+    return show_opportunity(opportunity_id)
+
+def show_opportunity(opportunity_id: str):
     # Find the opportunity
     opportunity = next((item for item in table if str(item['id']).lower() == str(opportunity_id).lower()), None)
     if opportunity is None:
@@ -602,7 +614,7 @@ def get(opportunity_id: str):
         citations_list(hidden=False),
         citations(opportunity),
         # This is the list of all cards, with the correct selection state. It is neededd to adjust the selection state of the card that was clicked on
-        *[opportunity_card(t, selected=(str(t['id']).lower() == str(opportunity_id).lower())) 
+        *[opportunity_card(t, selected=(str(t['id']).lower() == str(opportunity_id).lower()))
           for t in table]
     )
 
@@ -700,10 +712,10 @@ def generation_preview(opportunity_id):
         # First time the opportunity is being generated, it does not exist yet in the DOM
         if not preview_exists and not opportunity_exists:
             preview_exists = True
-            return Card(Div("In progress...", aria_busy="true"), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='load once', hx_swap='afterbegin', hx_target="#opportunity_list"), Card(status_text[status], style=info_card_style, aria_busy="true", id="new_opportunity", hx_swap_oob="true")
+            return None, new_opportunity()
         # If the opportunity is already in the DOM, we update it
         else:
-            return Card(Div("In progress...", aria_busy="true"), id=f"opportunity_{opportunity_id}", hx_vals=f'{{"opportunity_id": "{opportunity_id}"}}', hx_post=f"/generation_preview", hx_trigger='every 5s', hx_swap='outerHTML', hx_target=f"#opportunity_{opportunity_id}", hx_swap_oob="true"), Card(status_text[status], style=info_card_style, aria_busy="true", id="new_opportunity", hx_swap_oob="true")
+            return None, new_opportunity()
 
 @rt("/generation_preview")
 def post(opportunity_id: str):
@@ -736,7 +748,7 @@ def run_workflow(opportunity_name, opportunity_id):
             do_research=False,
             do_generate_outline=False,
             do_generate_article=True,
-            do_polish_article=True,
+            do_polish_article=False, # Removed the article polishing step because an Executive Summary is already (almost always) included in the article
             remove_duplicate=False
             #callback_handler=BaseCallbackHandler() # TODO: add callback handler
         )

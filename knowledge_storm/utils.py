@@ -665,6 +665,13 @@ class WebPageHelper:
         )
 
     def download_webpage(self, url: str, max_retries=3):
+        # Initialize stats dictionary if it doesn't exist
+        if not hasattr(self, 'download_stats'):
+            self.download_stats = {
+                'downloaded': 0,
+                'failed': 0
+            }
+
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -675,42 +682,32 @@ class WebPageHelper:
         try:
             for attempt in range(max_retries):
                 try:
-                    # Add delay between attempts
                     if attempt > 0:
                         time.sleep(2 ** attempt + random.uniform(0, 1))
 
-                    res = client.get(
-                        url,
-                        timeout=10,
-                        headers=headers
-                    )
+                    res = client.get(url, timeout=10, headers=headers)
 
                     if res.status_code == 200:
-                        # Verify we got HTML content
                         content_type = res.headers.get('content-type', '')
                         if 'text/html' not in content_type.lower():
-                            print(f"Not HTML content: {content_type} for {url}")
-                            return None
+                            if attempt == max_retries - 1:
+                                self.download_stats['failed'] += 1
+                            continue
 
-                        # Check if content is not empty
-                        if not res.content or len(res.content) < 100:  # arbitrary minimum size
-                            print(f"Empty or too small content for {url}")
-                            return None
+                        if not res.content or len(res.content) < 100:
+                            if attempt == max_retries - 1:
+                                self.download_stats['failed'] += 1
+                            continue
 
+                        self.download_stats['downloaded'] += 1
                         return res.content
 
-                    elif res.status_code >= 400:
-                        print(f"HTTP error {res.status_code} for {url} (attempt {attempt + 1}/{max_retries})")
-                        if attempt == max_retries - 1:
-                            return None
-                        continue
+                    elif res.status_code >= 400 and attempt == max_retries - 1:
+                        self.download_stats['failed'] += 1
 
-                except httpx.TimeoutException:
-                    print(f"Timeout error for {url} (attempt {attempt + 1}/{max_retries})")
-                except httpx.HTTPError as exc:
-                    print(f"HTTP error while requesting {url} - {exc!r} (attempt {attempt + 1}/{max_retries})")
                 except Exception as e:
-                    print(f"Unexpected error for {url}: {str(e)} (attempt {attempt + 1}/{max_retries})")
+                    if attempt == max_retries - 1:
+                        self.download_stats['failed'] += 1
 
         finally:
             client.close()
@@ -742,6 +739,11 @@ class WebPageHelper:
 
             except Exception:
                 continue
+
+        # Print download statistics after processing all URLs
+        print(f"\nDownload Statistics:")
+        print(f"Successfully downloaded: {self.download_stats['downloaded']}")
+        print(f"Failed downloads: {self.download_stats['failed']}")
 
         return articles
 
