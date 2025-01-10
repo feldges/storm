@@ -331,14 +331,10 @@ def new_opportunity():
     global oppo_id, oppo_name, oppo_status
     previous_oppo_id = oppo_id
     oppo_id, oppo_name, oppo_status = get_overall_status()
-    print("previous_oppo_id", previous_oppo_id)
-    print("oppo_id", oppo_id)
     if oppo_id is None:
         if previous_oppo_id is not None:
-            print("Triggering the opportunity")
-            show_opportunity(previous_oppo_id)
+            return new_opportunity(), show_opportunity(previous_oppo_id)
         else:
-            print("New opportunity")
             return Card(
                 Form(
                     Label("Enter the investment opportunity you want to write an investment memo for:"),
@@ -352,7 +348,6 @@ def new_opportunity():
                 id="new_opportunity"
                 )
     else:
-        print("Currently...")
         return Card(
             f"Currently working on the opportunity ", B(oppo_name), f" ({status_text[oppo_status]}). You have to wait for it to finish before you can start a new one.",
             aria_busy="true",
@@ -613,9 +608,13 @@ def show_opportunity(opportunity_id: str):
         personas(opportunity),
         citations_list(hidden=False),
         citations(opportunity),
-        # This is the list of all cards, with the correct selection state. It is neededd to adjust the selection state of the card that was clicked on
-        *[opportunity_card(t, selected=(str(t['id']).lower() == str(opportunity_id).lower()))
-          for t in table]
+        # Wrap the cards in a Div with the proper ID and class
+        Div(*[opportunity_card(t, selected=(str(t['id']).lower() == str(opportunity_id).lower()))
+          for t in table],
+          id='opportunity_list',
+          cls="grid",
+          hx_swap_oob="true"
+        )
     )
 
 @rt("/conversation/{persona}")
