@@ -14,14 +14,14 @@ import demo_util
 from demo_util import DemoFileIOHelper, DemoTextProcessingHelper
 from knowledge_storm import STORMWikiRunnerArguments, STORMWikiRunner, STORMWikiLMConfigs
 from knowledge_storm.lm import OpenAIModel
-from knowledge_storm.rm import YouRM, BraveRM
+from knowledge_storm.rm import YouRM, BraveRM, BingSearch
 from knowledge_storm.utils_db import database_path, get_db_connection
 
 load_dotenv()
 
 openai_api_key = os.getenv("OPENAI_API_KEY")
 ydc_api_key = os.getenv("YDC_API_KEY")
-
+bing_search_api_key = os.getenv("BING_SEARCH_API_KEY")
 app_styles = """
 html {
     scroll-behavior: smooth;
@@ -152,7 +152,8 @@ def set_storm_runner():
     )
 
     # rm = YouRM(ydc_api_key=ydc_api_key, k=engine_args.search_top_k)
-    rm = BraveRM(k=engine_args.search_top_k)
+    # rm = BraveRM(k=engine_args.search_top_k)
+    rm = BingSearch(bing_search_api_key=bing_search_api_key, k=engine_args.search_top_k)
 
     runner = STORMWikiRunner(engine_args, llm_configs, rm)
     return runner

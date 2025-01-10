@@ -591,7 +591,7 @@ class BraveRM(dspy.Retrieve):
     ):
         """Search with api.search.brave.com for self.k top passages for query or queries
 
-        Args:
+            Args:
             query_or_queries (Union[str, List[str]]): The query or queries to search for.
             exclude_urls (List[str]): A list of urls to exclude from the search results.
 

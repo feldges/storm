@@ -7,6 +7,7 @@ import re
 import regex
 import sys
 import time
+import random
 from typing import List, Dict
 
 import httpx
@@ -663,15 +664,58 @@ class WebPageHelper:
             ],
         )
 
-    def download_webpage(self, url: str):
+    def download_webpage(self, url: str, max_retries=3):
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5'
+        }
+
+        client = httpx.Client(follow_redirects=True)
         try:
-            res = self.httpx_client.get(url, timeout=4)
-            if res.status_code >= 400:
-                res.raise_for_status()
-            return res.content
-        except httpx.HTTPError as exc:
-            print(f"Error while requesting {exc.request.url!r} - {exc!r}")
-            return None
+            for attempt in range(max_retries):
+                try:
+                    # Add delay between attempts
+                    if attempt > 0:
+                        time.sleep(2 ** attempt + random.uniform(0, 1))
+
+                    res = client.get(
+                        url,
+                        timeout=10,
+                        headers=headers
+                    )
+
+                    if res.status_code == 200:
+                        # Verify we got HTML content
+                        content_type = res.headers.get('content-type', '')
+                        if 'text/html' not in content_type.lower():
+                            print(f"Not HTML content: {content_type} for {url}")
+                            return None
+
+                        # Check if content is not empty
+                        if not res.content or len(res.content) < 100:  # arbitrary minimum size
+                            print(f"Empty or too small content for {url}")
+                            return None
+
+                        return res.content
+
+                    elif res.status_code >= 400:
+                        print(f"HTTP error {res.status_code} for {url} (attempt {attempt + 1}/{max_retries})")
+                        if attempt == max_retries - 1:
+                            return None
+                        continue
+
+                except httpx.TimeoutException:
+                    print(f"Timeout error for {url} (attempt {attempt + 1}/{max_retries})")
+                except httpx.HTTPError as exc:
+                    print(f"HTTP error while requesting {url} - {exc!r} (attempt {attempt + 1}/{max_retries})")
+                except Exception as e:
+                    print(f"Unexpected error for {url}: {str(e)} (attempt {attempt + 1}/{max_retries})")
+
+        finally:
+            client.close()
+
+        return None
 
     def urls_to_articles(self, urls: List[str]) -> Dict:
         with concurrent.futures.ThreadPoolExecutor(
@@ -682,16 +726,22 @@ class WebPageHelper:
         articles = {}
 
         for h, u in zip(htmls, urls):
-            if h is None:
+            try:
+                if h is None:
+                    continue
+
+                article_text = extract(
+                    h,
+                    include_tables=False,
+                    include_comments=False,
+                    output_format="txt",
+                )
+
+                if article_text is not None and len(article_text) > self.min_char_count:
+                    articles[u] = {"text": article_text}
+
+            except Exception:
                 continue
-            article_text = extract(
-                h,
-                include_tables=False,
-                include_comments=False,
-                output_format="txt",
-            )
-            if article_text is not None and len(article_text) > self.min_char_count:
-                articles[u] = {"text": article_text}
 
         return articles
 
@@ -701,7 +751,6 @@ class WebPageHelper:
             articles[u]["snippets"] = self.text_splitter.split_text(articles[u]["text"])
 
         return articles
-
 
 def user_input_appropriateness_check(user_input):
     my_openai_model = OpenAIModel(
