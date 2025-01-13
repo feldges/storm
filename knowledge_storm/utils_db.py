@@ -1,28 +1,54 @@
 import json
 import copy
-import threading
-from contextlib import contextmanager
 from fasthtml.common import *
+from fasthtml.common import database
+from fastsql.core import _type_map
 
-#------------------------------------------------------------------------------
-database_path = "data/investor_reports.db"
-#------------------------------------------------------------------------------
+import os
+from datetime import datetime
+from sqlalchemy import DateTime
+from dotenv import load_dotenv
 
-_thread_local = threading.local()
+# Extend type_map before creating tables
+_type_map[datetime] = DateTime  # Add datetime support
 
-@contextmanager
-def get_db_connection():
-    if not hasattr(_thread_local, "db"):
-        _thread_local.db = database(database_path)
-    try:
-        yield _thread_local.db
-    finally:
-        if hasattr(_thread_local, "db"):
-            # Close the connection
-            _thread_local.db.close()
-            # Remove the db attribute
-            delattr(_thread_local, "db")
+load_dotenv()
 
+# ------------------------------------------------------------
+# Define datamodels and Database
+# Datamodels
+class Users:
+    id: str
+    email: str
+    first_name: str
+    last_name: str
+    terms_agreed: bool
+    terms_agreed_or_rejected_date: datetime
+    terms_agreed_date_first_time: datetime
+
+class Opportunities:
+    id: str
+    name: str
+    user_id: str
+    conversation_log: str
+    direct_gen_outline: str
+    llm_call_history: str
+    raw_search_results: str
+    run_config: str
+    storm_gen_article_polished: str
+    storm_gen_article: str
+    storm_gen_outline: str
+    url_to_info: str
+    status: str
+
+# Database
+db_file = os.getenv("DB_FILE", "data/investor_reports.db")
+db = database(db_file)
+
+users = db.create(Users, pk='id')
+opportunities = db.create(Opportunities, pk='id')
+
+#-------------------------------------------------------------------------------
 # Help function to handle non-serializable contents
 def handle_non_serializable(obj): return "non-serializable contents"
 

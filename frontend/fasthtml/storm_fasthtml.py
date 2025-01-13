@@ -4,18 +4,21 @@ import sys
 import os
 import re
 import json
+import time
 from dotenv import load_dotenv
 import unicodedata
-from collections import defaultdict
+
+database_path = os.getenv("DB_FILE", "data/investor_reports.db")
 
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'demo_light'))
 
 import demo_util
-from demo_util import DemoFileIOHelper, DemoTextProcessingHelper
+from demo_util import DemoTextProcessingHelper
 from knowledge_storm import STORMWikiRunnerArguments, STORMWikiRunner, STORMWikiLMConfigs
 from knowledge_storm.lm import OpenAIModel
 from knowledge_storm.rm import YouRM, BraveRM, BingSearch
-from knowledge_storm.utils_db import database_path, get_db_connection
+# users and opportunities are tables in the database; Users and Opportunities are datamodels
+from knowledge_storm.utils_db import db, users, opportunities, Users, Opportunities
 
 load_dotenv()
 
@@ -267,53 +270,33 @@ def read_data_to_dict(opportunities):
                 articles_dict[opportunity_id][key] = value
     return articles_dict
 
-#-------------------------------------------------------------------------------
-# Read data from the source directory and return a dictionary under table
-#-------------------------------------------------------------------------------
-# Create a database
-with get_db_connection() as db:
-    opportunities, users = db.t.opportunities, db.t.users
-    if opportunities not in db.t:
-        users.create(name=str, pk='name')
-        opportunities.create(id=str, name=str, conversation_log=str, direct_gen_outline=str, llm_call_history=str,
-                        raw_search_results=str, run_config=str, storm_gen_article_polished=str, storm_gen_article=str,
-                        storm_gen_outline=str, url_to_info=str, user_name=str, status=str, pk='id')
-    # Create types for the database tables
-    Opportunities, Users = opportunities.dataclass(), users.dataclass()
-
 def get_table():
-    with get_db_connection() as db:
-        opportunities = db.t.opportunities
-        Opportunities = opportunities.dataclass()
-        data = read_data_to_dict(opportunities)
-        table = []
-        for opportunity in opportunities():
-            d = {}
-            d['id'] = opportunity.id
-            d['name'] = opportunity.name
-            d['status'] = opportunity.status
-            d['article'] = ""
-            d['citations'] = []
-            d['conversation_log'] = {}
-            article_data = assemble_article_data(data[opportunity.id])
-            if article_data is not None:
-                citations_dict = article_data.get('citations', {})
-                article_text = article_data.get('article', '')
-                processed_text = postprocess_article(article_text, citations_dict)
-                d['article'] = processed_text
-                d['citations'] = article_data.get('citations', [])
-                d['conversation_log'] = article_data.get('conversation_log', {})
-            table.append(d)
+    data = read_data_to_dict(opportunities)
+    table = []
+    for opportunity in opportunities():
+        d = {}
+        d['id'] = opportunity.id
+        d['name'] = opportunity.name
+        d['status'] = opportunity.status
+        d['article'] = ""
+        d['citations'] = []
+        d['conversation_log'] = {}
+        article_data = assemble_article_data(data[opportunity.id])
+        if article_data is not None:
+            citations_dict = article_data.get('citations', {})
+            article_text = article_data.get('article', '')
+            processed_text = postprocess_article(article_text, citations_dict)
+            d['article'] = processed_text
+            d['citations'] = article_data.get('citations', [])
+            d['conversation_log'] = article_data.get('conversation_log', {})
+        table.append(d)
     return data, table
 
 def get_overall_status():
-    with get_db_connection() as db:
-        opportunities = db.t.opportunities
-        Opportunities = opportunities.dataclass()
-        in_progress = opportunities(where="status!='complete'")
-        if in_progress and len(in_progress) > 0:
-            oppo_in_progress = in_progress[0]
-            return oppo_in_progress.id, oppo_in_progress.name, oppo_in_progress.status
+    in_progress = opportunities(where="status!='complete'")
+    if in_progress and len(in_progress) > 0:
+        oppo_in_progress = in_progress[0]
+        return oppo_in_progress.id, oppo_in_progress.name, oppo_in_progress.status
     return None, None, "complete"
 
 def refresh_data():
@@ -322,18 +305,12 @@ def refresh_data():
     return data, table
 
 def get_status(opportunity_id):
-    with get_db_connection() as db:
-        opportunities = db.t.opportunities
-        Opportunities = opportunities.dataclass()
-        opportunity = opportunities[opportunity_id]
-        return opportunity.status
+    opportunity = opportunities[opportunity_id]
+    return opportunity.status
 
 def set_status(opportunity_id, status):
-    with get_db_connection() as db:
-        opportunities = db.t.opportunities
-        Opportunities = opportunities.dataclass()
-        oppo = Opportunities(id=opportunity_id, status=status)
-        db.t.opportunities.update(oppo)
+    oppo = Opportunities(id=opportunity_id, status=status)
+    opportunities.update(oppo)
     return status
 
 data, table = refresh_data()
@@ -696,40 +673,37 @@ def post(opportunity_name: str):
     opportunity_id = name_to_id(opportunity_name)
 
     # Check if opportunity already exists
-    with get_db_connection() as db:
-        opportunities = db.t.opportunities
-        try:
-            opportunities[opportunity_id]
-            pass_appropriateness_check = False  # Opportunity already exists
-            return None, Card(
-            Form(
-                Div(
-                    Div(f"An investment memo for ", B(opportunity_name), " already exists. Click on 'Try again' and enter a different name.", style="flex: 1;"),
-                    Button("Try again", hx_get="/new_opportunity"),
-                    style="display: flex; justify-content: space-between; align-items: center;"
-                ),
-                hx_target="#new_opportunity"
+    try:
+        opportunities[opportunity_id]
+        pass_appropriateness_check = False  # Opportunity already exists
+        return None, Card(
+        Form(
+            Div(
+                Div(f"An investment memo for ", B(opportunity_name), " already exists. Click on 'Try again' and enter a different name.", style="flex: 1;"),
+                Button("Try again", hx_get="/new_opportunity"),
+                style="display: flex; justify-content: space-between; align-items: center;"
             ),
-            style=error_card_style,
-            id="new_opportunity",
-            hx_swap_oob="true"
-        )
-        except NotFoundError:
-            pass_appropriateness_check = True   # New opportunity
+            hx_target="#new_opportunity"
+        ),
+        style=error_card_style,
+        id="new_opportunity",
+        hx_swap_oob="true"
+    )
+    except NotFoundError:
+        pass_appropriateness_check = True   # New opportunity
 
     global opportunity_exists
-    with get_db_connection() as db:
-        opportunities = db.t.opportunities
-        Opportunities = opportunities.dataclass()
-        try:
-            opportunities[opportunity_id]
-            opportunity_exists = True
-            status = opportunities[opportunity_id].status
-            if status == 'complete':
-                return None, Card(status_text[status], style=info_card_style, id="new_opportunity", hx_swap_oob="true")
-        except NotFoundError:
-            opportunity_exists = False
-            db.t.opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, status='initiated'))
+    try:
+        opportunities[opportunity_id]
+        opportunity_exists = True
+        status = opportunities[opportunity_id].status
+        if status == 'complete':
+            return None, Card(status_text[status], style=info_card_style, id="new_opportunity", hx_swap_oob="true")
+    except NotFoundError:
+        opportunity_exists = False
+        opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, status='initiated'))
+        time.sleep(1)
+
     run_workflow(opportunity_name, opportunity_id)
     global preview_exists
     preview_exists = None
