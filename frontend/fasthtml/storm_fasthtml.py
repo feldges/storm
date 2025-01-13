@@ -115,6 +115,21 @@ input {
 .toc-level-3 {
     margin-left: 2rem;
 }
+
+/* Add these new styles */
+@media (max-width: 768px) {
+    /* Adjust header title font size for smaller screens */
+    .header-title {
+        font-size: 1.2rem !important;  /* Smaller font size on mobile */
+    }
+}
+
+@media (max-width: 480px) {
+    /* Even smaller for very small screens */
+    .header-title {
+        font-size: 1rem !important;
+    }
+}
 """
 
 hdrs = (MarkdownJS(), Style(app_styles))#, scripts, link_daisyui, link_pico)
@@ -326,6 +341,29 @@ data, table = refresh_data()
 #-------------------------------------------------------------------------------
 # Generate various HTML elements
 #-------------------------------------------------------------------------------
+def webpage_header():
+    return Div(
+        Div(
+            # Logo on the far left
+            A(
+                Img(
+                    src='/assets/aipe_logo_white.svg',
+                    alt='AIPE Logo',
+                    style='height: 24px; width: auto;'
+                ),
+                href='/',
+                style='text-decoration: none; margin-left: 20px;'
+            ),
+            H2(
+                "Investment Analyzer",
+                style='color: white; margin: 0; position: absolute; left: 50%; transform: translateX(-50%);',
+                cls='header-title'  # Added class for responsive styling
+            ),
+            style='display: flex; justify-content: space-between; align-items: center; padding: 6px 0; width: 100%; position: relative;'
+        ),
+        style='border-bottom: 1px solid #0055a4; background: #0055a4; width: 100%;'
+    )
+
 oppo_id, oppo_name, oppo_status = None, None, "complete"
 def new_opportunity():
     global oppo_id, oppo_name, oppo_status
@@ -569,7 +607,6 @@ def citations_list(hidden=True):
 
 def home():
     refresh_data()
-    title = "Investment Opportunity Analyzer"
     cards = Div(*[opportunity_card(t) for t in table], id='opportunity_list', cls="grid")
     main_content = Div(
                 Div(brainstorming_process(hidden=True)),
@@ -582,8 +619,9 @@ def home():
                 ),
             id="main_wrapper")
 
-    content = new_opportunity(), Card(cards, main_content)
-    return Titled(title, content)
+    page_header = webpage_header()
+    content = Div(new_opportunity(), Card(cards, main_content), style="max-width: 1200px; margin: 2rem auto 0; padding: 0 20px;")
+    return page_header, content
 
 
 @rt("/")
