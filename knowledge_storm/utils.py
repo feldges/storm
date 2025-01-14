@@ -8,7 +8,8 @@ import regex
 import sys
 import time
 import random
-from typing import List, Dict
+from typing import List, Dict, Optional
+from collections import Counter
 
 import httpx
 import pandas as pd
@@ -20,6 +21,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import QdrantClient, models
 from tqdm import tqdm
 from trafilatura import extract
+from urllib.robotparser import RobotFileParser
+from urllib.parse import urlparse
 
 from .lm import OpenAIModel
 
@@ -663,56 +666,58 @@ class WebPageHelper:
                 "",
             ],
         )
+        self.robots_cache: Dict[str, RobotFileParser] = {}
+        self.user_agent = "*"
+        self.download_stats = Counter()
 
-    def download_webpage(self, url: str, max_retries=3):
-        # Initialize stats dictionary if it doesn't exist
-        if not hasattr(self, 'download_stats'):
-            self.download_stats = {
-                'downloaded': 0,
-                'failed': 0
-            }
+    def get_robots_parser(self, url: str) -> Optional[RobotFileParser]:
+        parsed_url = urlparse(url)
+        base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5'
-        }
+        if base_url not in self.robots_cache:
+            rp = RobotFileParser()
+            rp.set_url(f"{base_url}/robots.txt")
+            try:
+                robots_content = self.httpx_client.get(
+                    f"{base_url}/robots.txt",
+                    timeout=4
+                ).text
+                rp.parse(robots_content.splitlines())
+                self.robots_cache[base_url] = rp
+            except httpx.HTTPError:
+                # If we can't fetch robots.txt, we'll assume crawling is allowed
+                return None
 
-        client = httpx.Client(follow_redirects=True)
+        return self.robots_cache[base_url]
+
+    def can_fetch(self, url: str) -> bool:
+        parsed_url = urlparse(url)
+        path = parsed_url.path
+        if not path:
+            path = "/"
+
+        rp = self.get_robots_parser(url)
+        if rp is None:
+            return True
+
+        return rp.can_fetch(self.user_agent, path)
+
+    def download_webpage(self, url: str):
+        if not self.can_fetch(url):
+            # print(f"Robots.txt prevents downloading {url}")
+            self.download_stats['robotstxt_blocked'] += 1
+            return None
+
         try:
-            for attempt in range(max_retries):
-                try:
-                    if attempt > 0:
-                        time.sleep(2 ** attempt + random.uniform(0, 1))
-
-                    res = client.get(url, timeout=10, headers=headers)
-
-                    if res.status_code == 200:
-                        content_type = res.headers.get('content-type', '')
-                        if 'text/html' not in content_type.lower():
-                            if attempt == max_retries - 1:
-                                self.download_stats['failed'] += 1
-                            continue
-
-                        if not res.content or len(res.content) < 100:
-                            if attempt == max_retries - 1:
-                                self.download_stats['failed'] += 1
-                            continue
-
-                        self.download_stats['downloaded'] += 1
-                        return res.content
-
-                    elif res.status_code >= 400 and attempt == max_retries - 1:
-                        self.download_stats['failed'] += 1
-
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        self.download_stats['failed'] += 1
-
-        finally:
-            client.close()
-
-        return None
+            res = self.httpx_client.get(url, timeout=4)
+            if res.status_code >= 400:
+                res.raise_for_status()
+            self.download_stats['success'] += 1
+            return res.content
+        except httpx.HTTPError as exc:
+            # print(f"Error while requesting {exc.request.url!r} - {exc!r}")
+            self.download_stats['failed'] += 1
+            return None
 
     def urls_to_articles(self, urls: List[str]) -> Dict:
         with concurrent.futures.ThreadPoolExecutor(
@@ -721,29 +726,17 @@ class WebPageHelper:
             htmls = list(executor.map(self.download_webpage, urls))
 
         articles = {}
-
         for h, u in zip(htmls, urls):
-            try:
-                if h is None:
-                    continue
-
-                article_text = extract(
-                    h,
-                    include_tables=False,
-                    include_comments=False,
-                    output_format="txt",
-                )
-
-                if article_text is not None and len(article_text) > self.min_char_count:
-                    articles[u] = {"text": article_text}
-
-            except Exception:
+            if h is None:
                 continue
-
-        # Print download statistics after processing all URLs
-        print(f"\nDownload Statistics:")
-        print(f"Successfully downloaded: {self.download_stats['downloaded']}")
-        print(f"Failed downloads: {self.download_stats['failed']}")
+            article_text = extract(
+                h,
+                include_tables=False,
+                include_comments=False,
+                output_format="txt",
+            )
+            if article_text is not None and len(article_text) > self.min_char_count:
+                articles[u] = {"text": article_text}
 
         return articles
 
@@ -753,6 +746,13 @@ class WebPageHelper:
             articles[u]["snippets"] = self.text_splitter.split_text(articles[u]["text"])
 
         return articles
+
+    def get_stats(self):
+        """Returns the current download statistics including success ratio."""
+        stats = dict(self.download_stats)
+        total_attempts = sum(stats.values())
+        stats['success_ratio'] = stats['success'] / total_attempts if total_attempts > 0 else 0
+        return stats
 
 def user_input_appropriateness_check(user_input):
     my_openai_model = OpenAIModel(

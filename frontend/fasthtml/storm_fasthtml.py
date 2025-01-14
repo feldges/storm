@@ -7,6 +7,7 @@ import json
 import time
 from dotenv import load_dotenv
 import unicodedata
+import logging
 
 database_path = os.getenv("DB_FILE", "data/investor_reports.db")
 
@@ -305,6 +306,7 @@ def refresh_data():
     return data, table
 
 def get_status(opportunity_id):
+    time.sleep(0.5)
     opportunity = opportunities[opportunity_id]
     return opportunity.status
 
@@ -364,7 +366,11 @@ def new_opportunity():
                 )
     else:
         return Card(
-            f"Currently working on the opportunity ", B(oppo_name), f" ({status_text[oppo_status]}). You have to wait for it to finish before you can start a new one.",
+            Div(
+                Div(f"Working on the opportunity ", B(oppo_name), f" in stage {status_text[oppo_status]}."),
+                Div(status_description[oppo_status]),
+                Div("You have to wait for it to finish before you can start a new one.")
+            ),
             aria_busy="true",
             style=info_card_style,
             hx_get="/new_opportunity",
@@ -643,9 +649,15 @@ def get(opportunity_id: str, persona: str):
 
 # Nice text to the user for the status
 status_text = {
-    'initiated': "Initiated: report generation is being initiated ...",
-    'pre_writing': "Pre-writing: data is collected and outline is being generated. This takes up to two minutes ...",
-    'final_writing': "Final writing: article is being written. This takes up to one minute ...",
+    'initiated': "Initiated (report generation is being initiated ...)",
+    'pre_writing': "Pre-writing (data is collected and outline is being generated. This takes up to two minutes ...)",
+    'final_writing': "Final writing (article is being written. This takes up to one minute ...)",
+    'complete': "Report generation done!"
+}
+status_description = {
+    'initiated': "If this status remains for several minutes, please contact us.",
+    'pre_writing': "A writer is currently talking to four experts, who are collecting data from 100+ web sites found through 30+ search queries to Bing Search, to provide grounded answers. This takes up to two minutes.",
+    'final_writing': "Final writing. Several sections are being written in parallel. This takes up to one minute.",
     'complete': "Report generation done!"
 }
 
@@ -692,25 +704,38 @@ def post(opportunity_name: str):
     except NotFoundError:
         pass_appropriateness_check = True   # New opportunity
 
-    global opportunity_exists
-    try:
-        opportunities[opportunity_id]
-        opportunity_exists = True
-        status = opportunities[opportunity_id].status
-        if status == 'complete':
-            return None, Card(status_text[status], style=info_card_style, id="new_opportunity", hx_swap_oob="true")
-    except NotFoundError:
-        opportunity_exists = False
-        opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, status='initiated'))
-        time.sleep(1)
+    # Opportunity does not exist yet, so we create a new entry in the database
+    opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, status='initiated'))
+    # Verify creation with retries
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            opportunity = opportunities[opportunity_id]
+            break
+        except NotFoundError:
+            if attempt < max_attempts - 1:
+                time.sleep(0.5)
+            else:
+                return None, Card(
+                    Form(
+                        Div(
+                            Div(f"Failed to create the opportunity ", B(opportunity_name), " in the database. We are sorry for that. Please try again", style="flex: 1;"),
+                            Button("Try again", hx_get="/new_opportunity"),
+                            style="display: flex; justify-content: space-between; align-items: center;"
+                        ),
+                        hx_target="#new_opportunity"
+                    ),
+                    style=error_card_style,
+                    id="new_opportunity",
+                    hx_swap_oob="true"
+                )
 
     run_workflow(opportunity_name, opportunity_id)
-    global preview_exists
-    preview_exists = None
+
     return generation_preview(opportunity_id)
 
 def generation_preview(opportunity_id):
-    global preview_exists
+
     if get_status(opportunity_id) == 'complete':
         return (
             opportunity_generated,
@@ -719,14 +744,7 @@ def generation_preview(opportunity_id):
         )
     else:
         status = get_status(opportunity_id)
-        # If the opportunity exists already (from a previous run), we do not want to create a new entry in the DOM
-        # First time the opportunity is being generated, it does not exist yet in the DOM
-        if not preview_exists and not opportunity_exists:
-            preview_exists = True
-            return None, new_opportunity()
-        # If the opportunity is already in the DOM, we update it
-        else:
-            return None, new_opportunity()
+        return None, new_opportunity()
 
 @rt("/generation_preview")
 def post(opportunity_id: str):
@@ -772,7 +790,6 @@ def run_workflow(opportunity_name, opportunity_id):
         global opportunity_generated
         opportunity_generated = opportunity_card(opportunity)
         set_status(opportunity_id, 'complete')
-        preview_exists = None
 
     return opportunity_generated
 

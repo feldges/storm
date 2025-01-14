@@ -171,6 +171,10 @@ class BingSearch(dspy.Retrieve):
         valid_url_to_snippets = self.webpage_helper.urls_to_snippets(
             list(url_to_results.keys())
         )
+
+        download_stats = self.webpage_helper.get_stats()
+        print(f"Download statistics: {download_stats}")
+
         collected_results = []
         for url in valid_url_to_snippets:
             r = url_to_results[url]
