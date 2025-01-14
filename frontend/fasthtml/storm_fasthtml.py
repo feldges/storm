@@ -7,7 +7,6 @@ import json
 import time
 from dotenv import load_dotenv
 import unicodedata
-import logging
 
 database_path = os.getenv("DB_FILE", "data/investor_reports.db")
 
@@ -315,6 +314,14 @@ def set_status(opportunity_id, status):
     opportunities.update(oppo)
     return status
 
+def get_number_of_opportunities():
+    return len(opportunities())
+
+def get_max_number_of_opportunities():
+    #user = users()[0]
+    #return user.max_number_of_opportunities
+    return 5
+
 data, table = refresh_data()
 
 #-------------------------------------------------------------------------------
@@ -352,8 +359,12 @@ def new_opportunity():
         if previous_oppo_id is not None:
             return new_opportunity(), show_opportunity(previous_oppo_id)
         else:
-            return Card(
-                Form(
+            if get_number_of_opportunities() >= get_max_number_of_opportunities():
+                return limit_reached()
+            else:
+                return Div(opportunity_counter(),
+                Card(
+                    Form(
                     Label("Enter the investment opportunity you want to write an investment memo for:"),
                     Group(
                         Input(name="opportunity_name", placeholder="e.g. Roche, Swiss healthcare"),
@@ -363,7 +374,7 @@ def new_opportunity():
                 ),
                 hx_swap_oob="true",
                 id="new_opportunity"
-                )
+                ))
     else:
         return Card(
             Div(
@@ -379,6 +390,53 @@ def new_opportunity():
             id="new_opportunity"
         )
 
+def opportunity_counter():
+    """
+    Display the number of opportunities used and the percentage of opportunities used.
+    This is used to display the limits the usage limits the users have.
+    """
+    nb_oppo = get_number_of_opportunities()
+    max_nb_oppo = get_max_number_of_opportunities()
+    nb_oppo_left = max_nb_oppo - nb_oppo
+    percentage_counter = 0
+    if max_nb_oppo != 0:
+        percentage_counter = nb_oppo / max_nb_oppo
+    else:
+        percentage_counter = 1
+
+    # Define color styles
+    color_style = ""
+    if percentage_counter <= 0.5:
+        color_style = "color: #4caf50;"  # green
+    elif percentage_counter <= 0.75:
+        color_style = "color: #ff9800;"  # orange
+    else:
+        color_style = "color: #f44336;"  # red
+
+    text_counter = ""
+    if nb_oppo_left <= 0:
+        text_counter = f"You have reached the limit. Please contact us if you need more"
+    elif nb_oppo == 0:
+        text_counter = f"You have {max_nb_oppo} trials"
+    elif nb_oppo_left == 1:
+        text_counter = f"You have only one trial left"
+    else:
+        text_counter = f"{nb_oppo} / {max_nb_oppo} used"
+
+    return Div(text_counter, style=f"{color_style} font-size: 0.8rem; text-align: right;")
+
+def limit_reached():
+    return Card(
+            Form(
+                Div(f"You have reached the maximum number of opportunities. Please contact us to increase your limit.", style="flex: 1;"),
+                Button("Contact Us", 
+                       onclick="window.location.href='mailto:sales@aipetech.com?subject=Request%20for%20Access%20to%20Investment%20Analyzer&body=Hello,%0D%0A%0D%0AI%20am%20interested%20in%20getting%20access%20to%20the%20Investment%20Analyzer%20tool.%20I%20have%20reached%20the%20limit%20of%20my%20trial%20usage%20and%20would%20like%20to%20discuss%20pricing%20options%20and%20features%20available.%0D%0A%0D%0APlease%20contact%20me%20regarding%20available%20plans%20and%20next%20steps.%0D%0A%0D%0AThank%20you'"),
+                style="display: flex; justify-content: space-between; align-items: center;"
+            ),
+            style=error_card_style,
+            id="new_opportunity",
+            hx_swap_oob="true"
+        )
 
 def opportunity_card(t, selected=False):
     return Card(
@@ -667,6 +725,8 @@ def get():
 
 @rt("/")
 def post(opportunity_name: str):
+    if get_number_of_opportunities() >= get_max_number_of_opportunities():
+        return None, limit_reached()
     if opportunity_name == "":
         pass_appropriateness_check = False
         return None, Card(
