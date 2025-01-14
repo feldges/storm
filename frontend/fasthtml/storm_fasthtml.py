@@ -421,7 +421,7 @@ def opportunity_counter():
     elif nb_oppo_left == 1:
         text_counter = f"You have only one trial left"
     else:
-        text_counter = f"{nb_oppo} / {max_nb_oppo} used"
+        text_counter = f"{nb_oppo} / {max_nb_oppo} trials used"
 
     return Div(text_counter, style=f"{color_style} font-size: 0.8rem; text-align: right;")
 
@@ -707,14 +707,14 @@ def get(opportunity_id: str, persona: str):
 
 # Nice text to the user for the status
 status_text = {
-    'initiated': "Initiated (report generation is being initiated ...)",
-    'pre_writing': "Pre-writing (data is collected and outline is being generated. This takes up to two minutes ...)",
-    'final_writing': "Final writing (article is being written. This takes up to one minute ...)",
+    'initiated': "'Initiated'",
+    'pre_writing': "'Pre-writing'",
+    'final_writing': "'Final writing'",
     'complete': "Report generation done!"
 }
 status_description = {
     'initiated': "If this status remains for several minutes, please contact us.",
-    'pre_writing': "A writer is currently talking to four experts, who are collecting data from 100+ web sites found through 30+ search queries to Bing Search, to provide grounded answers. This takes up to two minutes.",
+    'pre_writing': "A writer is currently talking to four virtual experts, who are collecting data from 100+ web sites found through 30+ search queries to Bing Search, to provide grounded answers. This takes up to two minutes.",
     'final_writing': "Final writing. Several sections are being written in parallel. This takes up to one minute.",
     'complete': "Report generation done!"
 }

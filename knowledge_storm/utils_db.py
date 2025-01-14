@@ -22,9 +22,10 @@ class Users:
     email: str
     first_name: str
     last_name: str
-    terms_agreed: bool
+    terms_agreed: bool = False
     terms_agreed_or_rejected_date: datetime
     terms_agreed_date_first_time: datetime
+    max_number_of_opportunities: int = 5
 
 class Opportunities:
     id: str
