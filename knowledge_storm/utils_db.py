@@ -46,8 +46,8 @@ class Opportunities:
 db_file = os.getenv("DB_FILE", "data/investor_reports.db")
 db = database(db_file)
 
-users = db.create(Users, pk='id')
-opportunities = db.create(Opportunities, pk='id')
+users = db.create(Users, pk=['id'])
+opportunities = db.create(Opportunities, pk=['id', 'user_id'])
 
 #-------------------------------------------------------------------------------
 # Help function to handle non-serializable contents

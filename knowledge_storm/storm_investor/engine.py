@@ -138,6 +138,10 @@ class STORMWikiRunnerArguments:
         default="data/investor_reports.db",
         metadata={"help": "Path to the database."},
     )
+    user_id: str = field(
+        default="",
+        metadata={"help": "User ID."},
+    )
     max_conv_turn: int = field(
         default=3,
         metadata={
@@ -185,7 +189,7 @@ class STORMWikiRunner(Engine):
         self.args = args
         self.lm_configs = lm_configs
         self.database_path = self.args.database_path
-
+        self.user_id = self.args.user_id
         self.retriever = Retriever(rm=rm, max_thread=self.args.max_thread_num)
         storm_persona_generator = StormPersonaGenerator(
             self.lm_configs.question_asker_lm
@@ -234,8 +238,7 @@ class STORMWikiRunner(Engine):
         )
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
-
-        oppo = Opportunities(id=self.opportunity_id, conversation_log=dump_json(conversation_log), raw_search_results=dump_url_to_info(information_table))
+        oppo = Opportunities(id=self.opportunity_id, user_id=self.user_id, conversation_log=dump_json(conversation_log), raw_search_results=dump_url_to_info(information_table))
         opportunities.update(oppo)
         # -------------------------------------------------------------------------------
 
@@ -257,7 +260,7 @@ class STORMWikiRunner(Engine):
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
 
-        oppo = Opportunities(id=self.opportunity_id, storm_gen_outline=dump_outline_to_file(outline), direct_gen_outline=dump_outline_to_file(draft_outline))
+        oppo = Opportunities(id=self.opportunity_id, user_id=self.user_id, storm_gen_outline=dump_outline_to_file(outline), direct_gen_outline=dump_outline_to_file(draft_outline))
         opportunities.update(oppo)
         # -------------------------------------------------------------------------------
 
@@ -280,7 +283,7 @@ class STORMWikiRunner(Engine):
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
 
-        oppo = Opportunities(id=self.opportunity_id, storm_gen_article=dump_article_as_plain_text(draft_article), url_to_info=dump_reference_to_db(draft_article))
+        oppo = Opportunities(id=self.opportunity_id, user_id=self.user_id, storm_gen_article=dump_article_as_plain_text(draft_article), url_to_info=dump_reference_to_db(draft_article))
         opportunities.update(oppo)
         # -------------------------------------------------------------------------------
 
@@ -299,7 +302,7 @@ class STORMWikiRunner(Engine):
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
 
-        oppo = Opportunities(id=self.opportunity_id, storm_gen_article_polished=dump_article_as_plain_text(polished_article))
+        oppo = Opportunities(id=self.opportunity_id, user_id=self.user_id, storm_gen_article_polished=dump_article_as_plain_text(polished_article))
         opportunities.update(oppo)
         # -------------------------------------------------------------------------------
 
@@ -321,14 +324,14 @@ class STORMWikiRunner(Engine):
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
 
-        oppo = Opportunities(id=self.opportunity_id, run_config=dump_json(config_log), llm_call_history=prepare_calls_for_db(llm_call_history))
+        oppo = Opportunities(id=self.opportunity_id, user_id=self.user_id, run_config=dump_json(config_log), llm_call_history=prepare_calls_for_db(llm_call_history))
         opportunities.update(oppo)
         # -------------------------------------------------------------------------------
 
     # -------------------------------------------------------------------------------
     # Load conversation log table from database
-    def from_conversation_log_db(self, opportunity_id):
-        oppo = opportunities[opportunity_id]
+    def from_conversation_log_db(self, opportunity_id, user_id):
+        oppo = opportunities[opportunity_id, user_id]
         conversation_log_data = json.loads(oppo.conversation_log)
 
         conversations = []
@@ -338,32 +341,32 @@ class STORMWikiRunner(Engine):
             conversations.append((persona, dialogue_turns))
         return StormInformationTable(conversations)
 
-    def _load_information_table_from_db(self, opportunity_id):
-        return self.from_conversation_log_db(opportunity_id)
+    def _load_information_table_from_db(self, opportunity_id, user_id):
+        return self.from_conversation_log_db(opportunity_id, user_id)
     # -------------------------------------------------------------------------------
 
     # -------------------------------------------------------------------------------
     # Load outline from database
-    def from_outline_db(self, opportunity: str, opportunity_id: str):
+    def from_outline_db(self, opportunity: str, opportunity_id: str, user_id: str):
         """
         Create StormArticle class instance from outline file.
         """
-        oppo = opportunities[opportunity_id]
+        oppo = opportunities[opportunity_id, user_id]
         storm_gen_outline = oppo.storm_gen_outline
 
         outline_str = storm_gen_outline
         return StormArticle.from_outline_str(opportunity=opportunity, outline_str=outline_str)
 
-    def _load_outline_from_db(self, opportunity, opportunity_id):
-        return self.from_outline_db(opportunity=opportunity, opportunity_id=opportunity_id)
+    def _load_outline_from_db(self, opportunity, opportunity_id, user_id):
+        return self.from_outline_db(opportunity=opportunity, opportunity_id=opportunity_id, user_id=user_id)
 
     # -------------------------------------------------------------------------------
 
     # -------------------------------------------------------------------------------
     # Load draft article from database
 
-    def _load_draft_article_from_db(self, opportunity_id):
-        oppo = opportunities[opportunity_id]
+    def _load_draft_article_from_db(self, opportunity_id, user_id):
+        oppo = opportunities[opportunity_id, user_id]
         opportunity_name = oppo.name
         article_text = oppo.storm_gen_article
         references = json.loads(oppo.url_to_info)
@@ -375,6 +378,7 @@ class STORMWikiRunner(Engine):
         self,
         opportunity: str,
         opportunity_id: str,
+        user_id: str,
         ground_truth_url: str = "",
         do_research: bool = True,
         do_generate_outline: bool = True,
@@ -411,6 +415,7 @@ class STORMWikiRunner(Engine):
 
         self.opportunity = opportunity
         self.opportunity_id = opportunity_id
+        self.user_id = user_id
         self.database_path = self.args.database_path
         self.article_dir_name = truncate_filename(
             opportunity.replace(" ", "_").replace("/", "_")
@@ -430,7 +435,7 @@ class STORMWikiRunner(Engine):
         if do_generate_outline:
             # load information table if it's not initialized
             if information_table is None:
-                information_table = self._load_information_table_from_db(opportunity_id)
+                information_table = self._load_information_table_from_db(opportunity_id, user_id)
             outline = self.run_outline_generation_module(
                 information_table=information_table, callback_handler=callback_handler
             )
@@ -439,9 +444,9 @@ class STORMWikiRunner(Engine):
         draft_article: StormArticle = None
         if do_generate_article:
             if information_table is None:
-                information_table = self._load_information_table_from_db(opportunity_id)
+                information_table = self._load_information_table_from_db(opportunity_id, user_id)
             if outline is None:
-                outline = self._load_outline_from_db(opportunity, opportunity_id)
+                outline = self._load_outline_from_db(opportunity, opportunity_id, user_id)
             draft_article = self.run_article_generation_module(
                 outline=outline,
                 information_table=information_table,
@@ -451,7 +456,7 @@ class STORMWikiRunner(Engine):
         # article polishing module
         if do_polish_article:
             if draft_article is None:
-                draft_article = self._load_draft_article_from_db(opportunity_id=opportunity_id)
+                draft_article = self._load_draft_article_from_db(opportunity_id=opportunity_id, user_id=user_id)
             self.run_article_polishing_module(
                 draft_article=draft_article, remove_duplicate=remove_duplicate
             )
