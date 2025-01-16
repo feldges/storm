@@ -750,7 +750,7 @@ def opportunity_counter():
 
     text_counter = ""
     if nb_oppo_left <= 0:
-        text_counter = f"You have reached the limit. Please contact us if you need more"
+        text_counter = f"You have reached the limit. Please contact us to increase your limit."
     elif nb_oppo == 0:
         text_counter = f"You have {max_nb_oppo} trials"
     elif nb_oppo_left == 1:
@@ -764,7 +764,8 @@ def opportunity_counter():
                hx_swap_oob="true")
 
 def limit_reached():
-    return Card(
+    return Div(Div(opportunity_counter()),
+            Card(
             Form(
                 Div(f"You have reached the maximum number of opportunities. Please contact us to increase your limit.", style="flex: 1;"),
                 Button("Contact Us", 
@@ -774,7 +775,7 @@ def limit_reached():
             style=error_card_style,
             id="new_opportunity",
             hx_swap_oob="true"
-        )
+        ))
 
 def opportunity_card(t, selected=False):
     return Card(
@@ -1071,7 +1072,7 @@ def get():
 @app.post("/")
 def post(opportunity_name: str, auth):
     if get_number_of_opportunities() >= get_max_number_of_opportunities():
-        return None, limit_reached()
+        return None, opportunity_counter(), limit_reached()
     if opportunity_name == "":
         pass_appropriateness_check = False
         return None, Card(
@@ -1226,4 +1227,5 @@ def post():
 if __name__ == '__main__':
   # Alternative: you can use serve or uvicorn
   port = int(os.getenv("PORT", 8000))
-  serve(host='localhost', port=port, reload=True)
+  reload = os.getenv('RELOAD', 'true').lower() == 'true'
+  serve(host='localhost', port=port, reload=reload)
