@@ -21,8 +21,8 @@ This is a technology demonstration showcasing AI-powered investment report gener
 This is an experimental showcase provided "as is" without warranties of any kind.
 
 ## Contact
-Claude Feldges - claude@aipetech.com
+AIPE Technology - info@aipetech.com
 
 By using this service, you acknowledge these terms.
 
-*Last updated: 8 Jan 2025*
+*Last updated: 16 Jan 2025*

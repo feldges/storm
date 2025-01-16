@@ -1,22 +1,24 @@
-
-# Generate a requirements.txt file from poetry
-FROM python:3.12 AS requirements-stage
-WORKDIR /tmp
-RUN pip install poetry
-COPY ./pyproject.toml ./poetry.lock* /tmp/
-RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
-
-# Create the container
-FROM python:3.12
+FROM python:3.12-slim
 WORKDIR /app
 
-# Install build essentials for C++ compilation
-# RUN apt-get update && apt-get install -y build-essential
+# Install required system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY --from=requirements-stage /tmp/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
+# Install poetry
+RUN pip install poetry
 
-# Copy the entire app directory
+# Copy dependency files only
+COPY pyproject.toml poetry.lock ./
+
+# Configure poetry to not create a virtual environment inside Docker
+# and install dependencies
+RUN poetry config virtualenvs.create false && \
+    poetry install --no-interaction --only main
+
+# Copy application code
 COPY . /app
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1

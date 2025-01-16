@@ -1228,7 +1228,7 @@ def post():
     return Div("Process run")
 
 if __name__ == '__main__':
-  # Alternative: you can use serve or uvicorn
-  port = int(os.getenv("PORT", 8000))
-  reload = os.getenv('RELOAD', 'true').lower() == 'true'
-  serve(host='localhost', port=port, reload=reload)
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", 8000))
+    reload = os.getenv('RELOAD', 'true').lower() == 'true'
+    serve(host=host, port=port, reload=reload)

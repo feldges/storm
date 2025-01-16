@@ -1,55 +1,37 @@
+# Never include any .env files anywhere
+.env
+**/.env
+.env.*
+env/
+.env/
 
-.sesskey
-data/
+# Python cache files - don't rely on dots
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.sesskey
 
-# Version control
+# Mac files - don't rely on leading dots
+.DS_Store
+**/.DS_Store
+
+# Version control - be explicit
 .git
 .gitignore
-.gitattributes
 .github
+.dockerignore
 
-# Dependencies
-__pycache__     # Python cache
-*.pyc           # Python compiled files
-.venv           # Python virtual environment
-.env            # Environment variables
-**/.env         # Environment variables
-.env.*          # All environment file variants
-
-# Development tools and IDE files
-.DS_Store       # MacOS system files
-**/.DS_Store    # MacOS system files
-
-# Build outputs
-dist/           # Distribution files
-build/          # Build files
-coverage/       # Test coverage reports
-*.log           # Log files
-npm-debug.log   # NPM logs
-yarn-debug.log  # Yarn logs
-yarn-error.log
-
-# Docker files
+# Other patterns
+data/
+dist/
+build/
+coverage/
+*.log
 Dockerfile
-docker-compose*.yml
-.docker
-
-# Documentation and non-app files
-README.md
-CHANGELOG.md
-docs/
-*.md
-LICENSE
-
-# Testing
+docker-compose.yml
+docker-compose.*.yml
 test/
 tests/
-__tests__/
-*.test.js
-*.spec.js
-
-# Temporary files
 tmp/
 temp/
-.tmp/
-*.tmp
