@@ -426,20 +426,28 @@ def app_header(user):
                 href='/',
                 style='text-decoration: none; margin-left: 20px;'
             ),
-            # Profile menu
+            # Right side container with feedback link and profile menu
             Div(
-                # Initials circle with toggle behavior
+                # Feedback link
+                A("Feedback",
+                  href="mailto:support@aipetech.com?subject=Storm%20App%20Feedback&body=Hello%2C%0A%0AI%20would%20like%20to%20provide%20the%20following%20feedback%20about%20the%20Storm%20application%20and%20the%20generated%20content%3A%0A%0A%0ABest%20regards",
+                  style="color: white; margin-right: 15px; text-decoration: none; font-size: 0.9rem;"),
+                # Profile menu
                 Div(
-                    initials,
-                    style='width: 24px; height: 24px; background: white; color: #0055a4; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; position: relative;',
-                    hx_get='/toggle_menu',
-                    hx_target='#menu-container',
-                    hx_swap='outerHTML transition:true'
+                    # Initials circle with toggle behavior
+                    Div(
+                        initials,
+                        style='width: 24px; height: 24px; background: white; color: #0055a4; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; position: relative;',
+                        hx_get='/toggle_menu',
+                        hx_target='#menu-container',
+                        hx_swap='outerHTML transition:true'
+                    ),
+                    # Menu container - keep it simple
+                    Div(id='menu-container'),
+                    cls='dropdown',
+                    style='margin-right: 20px;'
                 ),
-                # Menu container - keep it simple
-                Div(id='menu-container'),
-                cls='dropdown',
-                style='margin-right: 20px;'
+                style='display: flex; align-items: center;'
             ),
             style='display: flex; justify-content: space-between; align-items: center; padding: 6px 0; width: 100%;'
         ),
