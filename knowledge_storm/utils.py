@@ -668,7 +668,7 @@ class WebPageHelper:
         )
         self.robots_cache: Dict[str, RobotFileParser] = {}
         self.user_agent = "*"
-        self.download_stats = Counter()
+        self.download_stats = Counter({'success': 0, 'failed': 0, 'robotstxt_blocked': 0})
 
     def get_robots_parser(self, url: str) -> Optional[RobotFileParser]:
         parsed_url = urlparse(url)
