@@ -11,6 +11,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import unicodedata
 from copy import deepcopy
+import sqlite3
 
 database_path = os.getenv("DB_FILE", "data/investor_reports.db")
 
@@ -240,7 +241,10 @@ class Auth(OAuth):
             try:
                 u = users[ident]
             except NotFoundError:
-                u = users.insert(Users(id=ident, email=info.email, first_name=info.given_name, last_name=info.family_name))
+                try:
+                    u = users.insert(Users(id=ident, email=info.email, first_name=info.given_name, last_name=info.family_name))
+                except sqlite3.IntegrityError:
+                    u = users[ident]
             return RedirectResponse('/', status_code=303)
         return RedirectResponse(self.login_path, status_code=303)
 
@@ -1096,7 +1100,10 @@ def post(opportunity_name: str, auth):
         pass_appropriateness_check = True   # New opportunity
 
     # Opportunity does not exist yet, so we create a new entry in the database
-    opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, user_id=auth, status='initiated'))
+    try:
+        opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, user_id=auth, status='initiated'))
+    except sqlite3.IntegrityError:
+        pass
     # Verify creation with retries
     max_attempts = 3
     for attempt in range(max_attempts):
