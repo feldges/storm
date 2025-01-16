@@ -435,11 +435,14 @@ def app_header(user):
                 href='/',
                 style='text-decoration: none; margin-left: 20px;'
             ),
-            # Right side container with feedback link and profile menu
+            # Right side container with support, feedback links and profile menu
             Div(
-                # Feedback link
+                # Support and Feedback links
+                A("Support",
+                  href="mailto:support@aipetech.com?subject=Storm%20App%20Support%20Request&body=Hello%2C%0A%0AI%20need%20assistance%20with%20the%20Storm%20application.%20Here%20are%20the%20details%20of%20my%20issue%3A%0A%0A-%20What%20happened%3A%0A-%20What%20I%20was%20trying%20to%20do%3A%0A-%20Steps%20to%20reproduce%20the%20issue%3A%0A%0ABest%20regards",
+                  style="color: white; margin-right: 15px; text-decoration: none; font-size: 0.9rem;"),
                 A("Feedback",
-                  href="mailto:support@aipetech.com?subject=Storm%20App%20Feedback&body=Hello%2C%0A%0AI%20would%20like%20to%20provide%20the%20following%20feedback%20about%20the%20Storm%20application%20and%20the%20generated%20content%3A%0A%0A%0ABest%20regards",
+                  href="mailto:feedback@aipetech.com?subject=Storm%20App%20Feedback&body=Hello%2C%0A%0AI%20would%20like%20to%20provide%20the%20following%20feedback%20about%20the%20Storm%20application%20and%20the%20generated%20content%3A%0A%0A%0ABest%20regards",
                   style="color: white; margin-right: 15px; text-decoration: none; font-size: 0.9rem;"),
                 # Profile menu
                 Div(
