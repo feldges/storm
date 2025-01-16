@@ -795,8 +795,15 @@ def table_of_contents(t):
 def article(t):
     if t["article"] == "":
         return Div(H2("...Article under construction..."), id="article", style="width: 75%;", hx_swap_oob="true")
-    content = [H1(t["name"])]
-    # Construct the article with the structure of the markdown
+
+    # Add disclaimer at the top
+    disclaimer = Div(
+        "Generated with Large Language Models (LLMs) using information from the Internet. LLMs make mistakes. Internet includes unverified information. Please double-check content.",
+        style="border: 1px solid #ff9800; border-radius: 4px; padding: 5px; margin-bottom: 20px; background-color: #fff3e0; font-size: 0.8em;"
+    )
+
+    content = [disclaimer, H1(t["name"])]
+    # Rest of the function remains the same
     for line in t["article"].splitlines():
         if not line.strip():
             continue
