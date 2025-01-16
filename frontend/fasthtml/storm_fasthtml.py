@@ -216,6 +216,11 @@ def restrict_db_access(req, session):
     opportunities.xtra(user_id=auth)
     users.xtra(id=auth)
 
+# For each thread, we need to enforce again the restriction to the database
+def set_thread_access(auth):
+    opportunities.xtra(user_id=auth)
+    users.xtra(id=auth)
+
 # Add a before to the app to check if the user has agreed to the terms of service
 def check_terms_agreed(req, session):
     auth = session.get('auth')
@@ -490,9 +495,9 @@ def set_storm_runner(auth):
     engine_args = STORMWikiRunnerArguments(
         output_dir=current_working_dir,
         max_conv_turn=3,
-        max_perspective=3,
-        search_top_k=3,
-        retrieve_top_k=5,
+        max_perspective=1, # 3 is the default
+        search_top_k=1, # 3 is the default
+        retrieve_top_k=5, # 5 is the default
         user_id=auth,
         database_path=database_path
     )
@@ -633,11 +638,12 @@ def refresh_data():
     return data, table
 
 def get_status(opportunity_id, auth):
-    time.sleep(0.5)
+    opportunities.xtra(user_id=auth)
     opportunity = opportunities[opportunity_id, auth]
     return opportunity.status
 
 def set_status(opportunity_id, auth, status):
+    opportunities.xtra(user_id=auth)
     oppo = Opportunities(id=opportunity_id, user_id=auth, status=status)
     opportunities.update(oppo)
     return status
@@ -690,7 +696,8 @@ def new_opportunity():
             if get_number_of_opportunities() >= get_max_number_of_opportunities():
                 return limit_reached()
             else:
-                return Div(opportunity_counter(),
+                return (
+                Div(opportunity_counter(),
                 Card(
                     Form(
                     Label("Enter the investment opportunity you want to write an investment memo for:"),
@@ -702,7 +709,7 @@ def new_opportunity():
                 ),
                 hx_swap_oob="true",
                 id="new_opportunity"
-                ))
+                )))
     else:
         return Card(
             Div(
@@ -751,7 +758,10 @@ def opportunity_counter():
     else:
         text_counter = f"{nb_oppo} / {max_nb_oppo} trials used"
 
-    return Div(text_counter, style=f"{color_style} font-size: 0.8rem; text-align: right;")
+    return Div(text_counter,
+               style=f"{color_style} font-size: 0.8rem; text-align: right;",
+               id="opportunity_counter",
+               hx_swap_oob="true")
 
 def limit_reached():
     return Card(
@@ -1138,6 +1148,7 @@ def generation_preview(opportunity_id, auth):
     if get_status(opportunity_id, auth) == 'complete':
         return (
             opportunity_generated,
+            opportunity_counter(),
             new_opportunity(),
             show_opportunity(opportunity_id)
         )
@@ -1151,6 +1162,8 @@ def post(opportunity_id: str, auth):
 
 @threaded
 def run_workflow(opportunity_name, opportunity_id, auth):
+    set_thread_access(auth)
+
     # Initiate the workflow
     if get_status(opportunity_id, auth) == 'initiated':
         set_storm_runner(auth)
