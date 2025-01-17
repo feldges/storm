@@ -253,7 +253,7 @@ class Auth(OAuth):
             return RedirectResponse('/', status_code=303)
         return RedirectResponse(self.login_path, status_code=303)
 
-oauth = Auth(app, client, skip=[r'/login', r'/redirect', r'/error', r'/logout', r'/privacy_policy', r'/terms_of_service', r'/favicon\.ico', r'/static/.*', r'/assets/.*', r'.*\.css'])
+oauth = Auth(app, client, skip=[r'/login', r'/redirect', r'/error', r'/logout', r'/health', r'/privacy_policy', r'/terms_of_service', r'/favicon\.ico', r'/static/.*', r'/assets/.*', r'.*\.css'])
 # The db access restriction has to be added to the before list AFTER the OAuth authentication
 app.before.append(Beforeware(restrict_db_access, skip=oauth.skip))
 skip_list_check_terms = deepcopy(oauth.skip)
@@ -268,6 +268,10 @@ def get(fname:str, ext:str): return FileResponse(f'{fname}.{ext}')
 
 # ------------------------------------------------------------
 # FastHTML Application starts here
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
 
 # Handler for toggle_menu endpoint
 @app.get('/toggle_menu')
