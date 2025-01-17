@@ -502,8 +502,8 @@ def set_storm_runner(auth):
     engine_args = STORMWikiRunnerArguments(
         output_dir=current_working_dir,
         max_conv_turn=3,
-        max_perspective=1, # 3 is the default
-        search_top_k=1, # 3 is the default
+        max_perspective=3, # 3 is the default
+        search_top_k=3, # 3 is the default
         retrieve_top_k=5, # 5 is the default
         user_id=auth,
         database_path=database_path
