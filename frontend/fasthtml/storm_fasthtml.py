@@ -308,8 +308,9 @@ def hide_menu():
 @app.get('/login')
 def login(req):
     return Title("Login"), login_header(), Div(
-            H1(application_name),
-            Div(application_description, style='margin: 0 auto 10px auto; width: 100%; max-width: 600px; text-align: justify; padding: 0 20px;'),
+            H1(application_name, style="margin: 0; padding-top: 60px;"),
+            Div(application_description,
+                style='margin: 0 auto 10px auto; width: 100%; max-width: 600px; text-align: justify; padding: 0 20px;'),
             Div(
                 A(
                     Img(src='/assets/images/google-logo.svg',
@@ -337,7 +338,7 @@ def login(req):
                 ),
                 style='margin-top: 20px; display: flex; width: 100%; max-width: 600px;'
             ),
-            style='display: flex; flex-direction: column; align-items: center; justify-content: center; height: 50vh;'
+            style='display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh;'
             )
 
 @app.get('/terms_of_service')
