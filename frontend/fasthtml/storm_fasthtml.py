@@ -248,8 +248,9 @@ class Auth(OAuth):
             except NotFoundError:
                 try:
                     u = users.insert(Users(id=ident, email=info.email, first_name=info.given_name, last_name=info.family_name))
-                except sqlite3.IntegrityError:
+                except Exception as e:
                     u = users[ident]
+                    print(f"User insert failed with error: {type(e).__name__} - {str(e)}")
             return RedirectResponse('/', status_code=303)
         return RedirectResponse(self.login_path, status_code=303)
 
@@ -1121,7 +1122,8 @@ def post(opportunity_name: str, auth):
     # Opportunity does not exist yet, so we create a new entry in the database
     try:
         opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, user_id=auth, status='initiated'))
-    except sqlite3.IntegrityError:
+    except Exception as e:
+        print(f"Opportunity insert failed with error: {type(e).__name__} - {str(e)}")
         pass
     # Verify creation with retries
     max_attempts = 3
