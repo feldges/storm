@@ -243,15 +243,21 @@ class Auth(OAuth):
     def get_auth(self, info, ident, session, state):
         email = info.email or ''
         if info.email_verified:
-            try:
-                u = users[ident]
-            except NotFoundError:
+            max_retries_users = 3
+            for attempt in range(max_retries_users):
                 try:
-                    u = users.insert(Users(id=ident, email=info.email, first_name=info.given_name, last_name=info.family_name))
-                except Exception as e:
                     u = users[ident]
-                    print(f"User insert failed with error: {type(e).__name__} - {str(e)}")
-            return RedirectResponse('/', status_code=303)
+                    return RedirectResponse('/', status_code=303)
+                except NotFoundError:
+                    try:
+                        u = users.insert(Users(id=ident, email=info.email, first_name=info.given_name, last_name=info.family_name))
+                        return RedirectResponse('/', status_code=303)
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            time.sleep(0.1 * (attempt + 1))
+                            continue
+                        u = users[ident]
+                        return RedirectResponse('/', status_code=303)
         return RedirectResponse(self.login_path, status_code=303)
 
 oauth = Auth(app, client, skip=[r'/login', r'/redirect', r'/error', r'/logout', r'/health', r'/privacy_policy', r'/terms_of_service', r'/favicon\.ico', r'/static/.*', r'/assets/.*', r'.*\.css'])
