@@ -648,7 +648,7 @@ def set_status(opportunity_id, auth, status):
     opportunities.update(oppo)
     return status
 
-def get_number_of_opportunities():
+def get_number_of_opportunities(auth):
     set_thread_access(auth)
     return len(opportunities())
 
@@ -694,11 +694,11 @@ def new_opportunity(auth):
         if previous_oppo_id is not None:
             return new_opportunity(auth), show_opportunity(previous_oppo_id, auth)
         else:
-            if get_number_of_opportunities() >= get_max_number_of_opportunities():
-                return limit_reached()
+            if get_number_of_opportunities(auth) >= get_max_number_of_opportunities(auth):
+                return limit_reached(auth)
             else:
                 return (
-                Div(opportunity_counter(),
+                Div(opportunity_counter(auth),
                 Card(
                     Form(
                     Label("Enter the investment opportunity you want to write an investment memo for:"),
@@ -726,13 +726,13 @@ def new_opportunity(auth):
             id="new_opportunity"
         )
 
-def opportunity_counter():
+def opportunity_counter(auth):
     """
     Display the number of opportunities used and the percentage of opportunities used.
     This is used to display the limits the usage limits the users have.
     """
-    nb_oppo = get_number_of_opportunities()
-    max_nb_oppo = get_max_number_of_opportunities()
+    nb_oppo = get_number_of_opportunities(auth)
+    max_nb_oppo = get_max_number_of_opportunities(auth)
     nb_oppo_left = max_nb_oppo - nb_oppo
     percentage_counter = 0
     if max_nb_oppo != 0:
@@ -764,8 +764,8 @@ def opportunity_counter():
                id="opportunity_counter",
                hx_swap_oob="true")
 
-def limit_reached():
-    return Div(Div(opportunity_counter()),
+def limit_reached(auth):
+    return Div(Div(opportunity_counter(auth)),
             Card(
             Form(
                 Div(f"You have reached the maximum number of opportunities. Please contact us to increase your limit.", style="flex: 1;"),
@@ -1080,8 +1080,8 @@ def get(session):
 
 @app.post("/")
 def post(opportunity_name: str, auth):
-    if get_number_of_opportunities() >= get_max_number_of_opportunities():
-        return None, opportunity_counter(), limit_reached()
+    if get_number_of_opportunities(auth) >= get_max_number_of_opportunities(auth):
+        return None, opportunity_counter(auth), limit_reached(auth)
     if opportunity_name == "":
         pass_appropriateness_check = False
         return None, Card(
