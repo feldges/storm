@@ -50,13 +50,17 @@ db = database(db_file)
 users = db.create(Users, pk=['id'])
 opportunities = db.create(Opportunities, pk=['id', 'user_id'])
 
+# For each thread, we need to enforce again the restriction to the database
+def set_thread_access(auth):
+    opportunities.xtra(user_id=auth)
+    users.xtra(id=auth)
+
 @contextmanager
 def db_transaction(auth):
     """Context manager that handles both transaction and database access restrictions"""
     # Set the database access restrictions
     opportunities.xtra(user_id=auth)
     users.xtra(id=auth)
-
     # Start transaction
     db.begin()
     try:

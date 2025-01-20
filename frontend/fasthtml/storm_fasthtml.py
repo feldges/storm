@@ -22,7 +22,7 @@ from knowledge_storm import STORMWikiRunnerArguments, STORMWikiRunner, STORMWiki
 from knowledge_storm.lm import OpenAIModel
 from knowledge_storm.rm import YouRM, BraveRM, BingSearch
 # users and opportunities are tables in the database; Users and Opportunities are datamodels
-from knowledge_storm.utils_db import db, users, opportunities, Users, Opportunities, db_transaction
+from knowledge_storm.utils_db import db, users, opportunities, Users, Opportunities, db_transaction, set_thread_access
 
 load_dotenv()
 
@@ -215,11 +215,6 @@ def restrict_db_access(req, session):
     opportunities.xtra(user_id=auth)
     users.xtra(id=auth)
 
-# For each thread, we need to enforce again the restriction to the database
-def set_thread_access(auth):
-    opportunities.xtra(user_id=auth)
-    users.xtra(id=auth)
-
 # Add a before to the app to check if the user has agreed to the terms of service
 def check_terms_agreed(req, session):
     auth = session.get('auth')
@@ -397,8 +392,7 @@ def privacy_policy():
 def agree_terms(req, session, approve: bool = None):
     auth = session.get('auth')
     approve = True if approve is None else approve
-    with db_transaction(auth):
-        users.update(id=auth, terms_agreed=approve, terms_agreed_or_rejected_date=datetime.now(), terms_agreed_date_first_time=datetime.now() if users[auth].terms_agreed_date_first_time is None else users[auth].terms_agreed_date_first_time)
+    users.update(id=auth, terms_agreed=approve, terms_agreed_or_rejected_date=datetime.now(), terms_agreed_date_first_time=datetime.now() if users[auth].terms_agreed_date_first_time is None else users[auth].terms_agreed_date_first_time)
     if approve:
         return RedirectResponse('/', status_code=303)
     else:
@@ -644,24 +638,24 @@ def refresh_data():
     return data, table
 
 def get_status(opportunity_id, auth):
-    opportunities.xtra(user_id=auth)
+    set_thread_access(auth)
     opportunity = opportunities[opportunity_id, auth]
     return opportunity.status
 
 def set_status(opportunity_id, auth, status):
-    opportunities.xtra(user_id=auth)
+    set_thread_access(auth)
     oppo = Opportunities(id=opportunity_id, user_id=auth, status=status)
-    with db_transaction(auth):
-        opportunities.update(oppo)
+    opportunities.update(oppo)
     return status
 
 def get_number_of_opportunities():
+    set_thread_access(auth)
     return len(opportunities())
 
-def get_max_number_of_opportunities():
-    #user = users()[0]
-    #return user.max_number_of_opportunities
-    return 5
+def get_max_number_of_opportunities(auth):
+    set_thread_access(auth)
+    user = users()[0]
+    return user.max_number_of_opportunities
 
 data, table = refresh_data()
 
@@ -692,13 +686,13 @@ def webpage_header():
     )
 
 oppo_id, oppo_name, oppo_status = None, None, "complete"
-def new_opportunity():
+def new_opportunity(auth):
     global oppo_id, oppo_name, oppo_status
     previous_oppo_id = oppo_id
     oppo_id, oppo_name, oppo_status = get_overall_status()
     if oppo_id is None:
         if previous_oppo_id is not None:
-            return new_opportunity(), show_opportunity(previous_oppo_id)
+            return new_opportunity(auth), show_opportunity(previous_oppo_id, auth)
         else:
             if get_number_of_opportunities() >= get_max_number_of_opportunities():
                 return limit_reached()
@@ -775,7 +769,7 @@ def limit_reached():
             Card(
             Form(
                 Div(f"You have reached the maximum number of opportunities. Please contact us to increase your limit.", style="flex: 1;"),
-                Button("Contact Us", 
+                Button("Contact Us",
                        onclick="window.location.href='mailto:sales@aipetech.com?subject=Request%20for%20Access%20to%20Investment%20Analyzer&body=Hello,%0D%0A%0D%0AI%20am%20interested%20in%20getting%20access%20to%20the%20Investment%20Analyzer%20tool.%20I%20have%20reached%20the%20limit%20of%20my%20trial%20usage%20and%20would%20like%20to%20discuss%20pricing%20options%20and%20features%20available.%0D%0A%0D%0APlease%20contact%20me%20regarding%20available%20plans%20and%20next%20steps.%0D%0A%0D%0AThank%20you'"),
                 style="display: flex; justify-content: space-between; align-items: center;"
             ),
@@ -1012,9 +1006,8 @@ def home(auth):
                     cls="content-wrapper"
                 ),
             id="main_wrapper")
-
     page_header = app_header(users[auth])
-    content = Div(new_opportunity(), Card(cards, main_content), style="max-width: 1200px; margin: 2rem auto 0; padding: 0 20px;")
+    content = Div(new_opportunity(auth), Card(cards, main_content), style="max-width: 1200px; margin: 2rem auto 0; padding: 0 20px;")
     return page_header, content
 
 
@@ -1023,10 +1016,13 @@ def get(auth):
     return home(auth)
 
 @app.get("/opportunity/{opportunity_id}")
-def get(opportunity_id: str):
-    return show_opportunity(opportunity_id)
+def get(opportunity_id: str, session):
+    auth = session.get('auth')
+    refresh_data()
+    set_thread_access(auth)
+    return show_opportunity(opportunity_id, auth)
 
-def show_opportunity(opportunity_id: str):
+def show_opportunity(opportunity_id: str, auth):
     # Find the opportunity
     opportunity = next((item for item in table if str(item['id']).lower() == str(opportunity_id).lower()), None)
     if opportunity is None:
@@ -1050,7 +1046,10 @@ def show_opportunity(opportunity_id: str):
     )
 
 @app.get("/conversation/{persona}")
-def get(opportunity_id: str, persona: str):
+def get(opportunity_id: str, persona: str, session):
+    auth = session.get('auth')
+    refresh_data()
+    set_thread_access(auth)
     opportunity = next((item for item in table if str(item['id']).lower() == str(opportunity_id).lower()), None)
     if opportunity is None:
         return "Opportunity not found"
@@ -1073,8 +1072,11 @@ status_description = {
 }
 
 @app.get("/new_opportunity")
-def get():
-    return new_opportunity()
+def get(session):
+    auth = session.get('auth')
+    refresh_data()
+    set_thread_access(auth)
+    return new_opportunity(auth)
 
 @app.post("/")
 def post(opportunity_name: str, auth):
@@ -1134,12 +1136,12 @@ def generation_preview(opportunity_id, auth):
         return (
             opportunity_generated,
             opportunity_counter(),
-            new_opportunity(),
-            show_opportunity(opportunity_id)
+            new_opportunity(auth),
+            show_opportunity(opportunity_id, auth)
         )
     else:
         status = get_status(opportunity_id, auth)
-        return None, new_opportunity()
+        return None, new_opportunity(auth)
 
 @app.post("/generation_preview")
 def post(opportunity_id: str, auth):
