@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 from sqlalchemy import DateTime
 from dotenv import load_dotenv
+from contextlib import contextmanager
 
 # Extend type_map before creating tables
 _type_map[datetime] = DateTime  # Add datetime support
@@ -48,6 +49,22 @@ db = database(db_file)
 
 users = db.create(Users, pk=['id'])
 opportunities = db.create(Opportunities, pk=['id', 'user_id'])
+
+@contextmanager
+def db_transaction(auth):
+    """Context manager that handles both transaction and database access restrictions"""
+    # Set the database access restrictions
+    opportunities.xtra(user_id=auth)
+    users.xtra(id=auth)
+
+    # Start transaction
+    db.begin()
+    try:
+        yield
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
 
 #-------------------------------------------------------------------------------
 # Help function to handle non-serializable contents

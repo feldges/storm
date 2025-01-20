@@ -11,7 +11,6 @@ from datetime import datetime
 from dotenv import load_dotenv
 import unicodedata
 from copy import deepcopy
-import sqlite3
 
 database_path = os.getenv("DB_FILE", "data/investor_reports.db")
 
@@ -23,7 +22,7 @@ from knowledge_storm import STORMWikiRunnerArguments, STORMWikiRunner, STORMWiki
 from knowledge_storm.lm import OpenAIModel
 from knowledge_storm.rm import YouRM, BraveRM, BingSearch
 # users and opportunities are tables in the database; Users and Opportunities are datamodels
-from knowledge_storm.utils_db import db, users, opportunities, Users, Opportunities
+from knowledge_storm.utils_db import db, users, opportunities, Users, Opportunities, db_transaction
 
 load_dotenv()
 
@@ -243,21 +242,12 @@ class Auth(OAuth):
     def get_auth(self, info, ident, session, state):
         email = info.email or ''
         if info.email_verified:
-            max_retries_users = 3
-            for attempt in range(max_retries_users):
+            with db_transaction(ident):
                 try:
                     u = users[ident]
-                    return RedirectResponse('/', status_code=303)
                 except NotFoundError:
-                    try:
-                        u = users.insert(Users(id=ident, email=info.email, first_name=info.given_name, last_name=info.family_name))
-                        return RedirectResponse('/', status_code=303)
-                    except Exception as e:
-                        if attempt < max_retries - 1:
-                            time.sleep(0.1 * (attempt + 1))
-                            continue
-                        u = users[ident]
-                        return RedirectResponse('/', status_code=303)
+                    u = users.insert(Users(id=ident, email=info.email, first_name=info.given_name, last_name=info.family_name), ignore=True)
+            return RedirectResponse('/', status_code=303)
         return RedirectResponse(self.login_path, status_code=303)
 
 oauth = Auth(app, client, skip=[r'/login', r'/redirect', r'/error', r'/logout', r'/health', r'/privacy_policy', r'/terms_of_service', r'/favicon\.ico', r'/static/.*', r'/assets/.*', r'.*\.css'])
@@ -407,7 +397,8 @@ def privacy_policy():
 def agree_terms(req, session, approve: bool = None):
     auth = session.get('auth')
     approve = True if approve is None else approve
-    users.update(id=auth, terms_agreed=approve, terms_agreed_or_rejected_date=datetime.now(), terms_agreed_date_first_time=datetime.now() if users[auth].terms_agreed_date_first_time is None else users[auth].terms_agreed_date_first_time)
+    with db_transaction(auth):
+        users.update(id=auth, terms_agreed=approve, terms_agreed_or_rejected_date=datetime.now(), terms_agreed_date_first_time=datetime.now() if users[auth].terms_agreed_date_first_time is None else users[auth].terms_agreed_date_first_time)
     if approve:
         return RedirectResponse('/', status_code=303)
     else:
@@ -660,7 +651,8 @@ def get_status(opportunity_id, auth):
 def set_status(opportunity_id, auth, status):
     opportunities.xtra(user_id=auth)
     oppo = Opportunities(id=opportunity_id, user_id=auth, status=status)
-    opportunities.update(oppo)
+    with db_transaction(auth):
+        opportunities.update(oppo)
     return status
 
 def get_number_of_opportunities():
@@ -1107,7 +1099,7 @@ def post(opportunity_name: str, auth):
 
     # Check if opportunity already exists
     try:
-        opportunities[opportunity_id]
+        opportunities[opportunity_id, auth]
         pass_appropriateness_check = False  # Opportunity already exists
         return None, Card(
         Form(
@@ -1126,35 +1118,11 @@ def post(opportunity_name: str, auth):
         pass_appropriateness_check = True   # New opportunity
 
     # Opportunity does not exist yet, so we create a new entry in the database
-    try:
-        opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, user_id=auth, status='initiated'))
-    except Exception as e:
-        print(f"Opportunity insert failed with error: {type(e).__name__} - {str(e)}")
-        pass
-    # Verify creation with retries
-    max_attempts = 3
-    for attempt in range(max_attempts):
+    with db_transaction(auth):
         try:
-            opportunity = opportunities[opportunity_id, auth]
-            break
+            opportunities[opportunity_id, auth]
         except NotFoundError:
-            if attempt < max_attempts - 1:
-                print("Attempt", attempt+1)
-                time.sleep(0.5)
-            else:
-                return None, Card(
-                    Form(
-                        Div(
-                            Div(f"Failed to create the opportunity ", B(opportunity_name), " in the database. We are sorry for that. Please try again", style="flex: 1;"),
-                            Button("Try again", hx_get="/new_opportunity"),
-                            style="display: flex; justify-content: space-between; align-items: center;"
-                        ),
-                        hx_target="#new_opportunity"
-                    ),
-                    style=error_card_style,
-                    id="new_opportunity",
-                    hx_swap_oob="true"
-                )
+            opportunities.insert(Opportunities(id=opportunity_id, name=opportunity_name, user_id=auth, status='initiated'))
 
     run_workflow(opportunity_name, opportunity_id, auth)
 
