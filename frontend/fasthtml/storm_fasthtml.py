@@ -218,6 +218,7 @@ def restrict_db_access(req, session):
 # Add a before to the app to check if the user has agreed to the terms of service
 def check_terms_agreed(req, session):
     auth = session.get('auth')
+    set_thread_access(auth)
     if not users[auth].terms_agreed:
         return RedirectResponse('/terms_of_service', status_code=303)
     return None
