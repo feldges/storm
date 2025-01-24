@@ -242,7 +242,7 @@ class Auth(OAuth):
                 try:
                     u = users[ident]
                 except NotFoundError:
-                    u = users.insert(Users(id=ident, email=info.email, first_name=info.given_name, last_name=info.family_name), ignore=True)
+                    u = users.insert(Users(id=ident, email=info.email, first_name=info.get('given_name', ''), last_name=info.get('family_name', '')), ignore=True)
             return RedirectResponse('/', status_code=303)
         return RedirectResponse(self.login_path, status_code=303)
 
@@ -420,7 +420,7 @@ def login_header():
 # Create the header for the application
 show_menu = False
 def app_header(user):
-    initials = f"{user.first_name[0]}{user.last_name[0]}"
+    initials = f"{user.first_name[0:1]}{user.last_name[0:1]}" or "UNK"
     return Div(
         Div(
             # Logo on the far left
