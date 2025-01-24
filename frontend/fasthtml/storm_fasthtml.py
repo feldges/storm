@@ -246,7 +246,7 @@ class Auth(OAuth):
             return RedirectResponse('/', status_code=303)
         return RedirectResponse(self.login_path, status_code=303)
 
-oauth = Auth(app, client, skip=[r'/login', r'/redirect', r'/error', r'/logout', r'/health', r'/privacy_policy', r'/terms_of_service', r'/favicon\.ico', r'/static/.*', r'/assets/.*', r'.*\.css'])
+oauth = Auth(app, client, skip=[r'/login', r'/redirect', r'/error', r'/logout', r'/health', r'/privacy_policy', r'/terms_of_service', r'/favicon\.ico', r'/static/.*', r'/assets/.*', r'.*\.css', r'/robots.txt'])
 # The db access restriction has to be added to the before list AFTER the OAuth authentication
 app.before.append(Beforeware(restrict_db_access, skip=oauth.skip))
 skip_list_check_terms = deepcopy(oauth.skip)
@@ -1132,7 +1132,7 @@ def post(opportunity_name: str, auth):
     return generation_preview(opportunity_id, auth)
 
 def generation_preview(opportunity_id, auth):
-
+    set_thread_access(auth)
     if get_status(opportunity_id, auth) == 'complete':
         return (
             opportunity_generated,
