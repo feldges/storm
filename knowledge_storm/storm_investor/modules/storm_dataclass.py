@@ -3,6 +3,10 @@ import re
 from collections import OrderedDict
 from typing import Union, Optional, Any, List, Tuple, Dict
 
+from torch.cuda import empty_cache as cuda_empty_cache
+from torch.mps import empty_cache as mps_empty_cache
+import gc
+
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -117,6 +121,23 @@ class StormInformationTable(InformationTable):
         self.encoded_snippets = self.encoder.encode(
             self.collected_snippets, show_progress_bar=False
         )
+
+    def clean_up(self):
+        """Removes the encoder instance if it exists to free up memory"""
+        if hasattr(self, 'encoder'):
+            device_type = self.encoder.device
+
+            del self.encoder
+            del self.encoded_snippets
+            del self.collected_snippets
+            del self.collected_urls
+
+            # Clear device cache if needed
+            if device_type == 'cuda':
+                cuda_empty_cache()
+            elif device_type == 'mps':
+                mps_empty_cache()
+            gc.collect()
 
     def retrieve_information(
         self, queries: Union[List[str], str], search_top_k

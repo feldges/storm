@@ -154,6 +154,8 @@ class StormArticleGenerationModule(ArticleGenerationModule):
                 for future in as_completed(future_to_sec_title):
                     section_output_dict_collection.append(future.result())
 
+        information_table.clean_up()
+
         article = copy.deepcopy(article_with_outline)
         for section_output_dict in section_output_dict_collection:
             article.update_section(
