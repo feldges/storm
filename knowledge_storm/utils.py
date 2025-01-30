@@ -491,7 +491,7 @@ class ArticleTextProcessing:
         outline = re.sub(
             r"#[#]? Further Reading*?(?=##|$)", "", outline, flags=re.DOTALL
         )
-        outline = re.sub(r"#[#]? Summary.*?(?=##|$)", "", outline, flags=re.DOTALL)
+        outline = re.sub(r"#[#]? (Executive )?Summary.*?(?=##|$)", "", outline, flags=re.DOTALL | re.IGNORECASE)
         outline = re.sub(r"#[#]? Appendices.*?(?=##|$)", "", outline, flags=re.DOTALL)
         outline = re.sub(r"#[#]? Appendix.*?(?=##|$)", "", outline, flags=re.DOTALL)
         # clean up citation in outline

@@ -1179,7 +1179,7 @@ def run_workflow(opportunity_name, opportunity_id, auth):
             do_research=False,
             do_generate_outline=False,
             do_generate_article=True,
-            do_polish_article=False, # Removed the article polishing step because an Executive Summary is already (almost always) included in the article
+            do_polish_article=True,
             remove_duplicate=False
             #callback_handler=BaseCallbackHandler() # TODO: add callback handler
         )

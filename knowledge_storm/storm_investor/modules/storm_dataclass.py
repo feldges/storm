@@ -255,7 +255,7 @@ class StormArticle(Article):
                 )
                 insert_to_front = (
                     parent_node.section_name == self.root.section_name
-                    and current_section_node.section_name == "summary"
+                    and current_section_node.section_name == "Executive Summary"
                 )
                 parent_node.add_child(
                     current_section_node, insert_to_front=insert_to_front

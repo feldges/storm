@@ -7,7 +7,6 @@ from .storm_dataclass import StormArticle
 from ...interface import ArticlePolishingModule
 from ...utils import ArticleTextProcessing
 
-
 class StormArticlePolishingModule(ArticlePolishingModule):
     """
     The interface for investment report generation stage. Given investment opportunity, collected information from
@@ -42,7 +41,7 @@ class StormArticlePolishingModule(ArticlePolishingModule):
         polish_result = self.polish_page(
             opportunity=opportunity, draft_page=article_text, polish_whole_page=remove_duplicate
         )
-        lead_section = f"# summary\n{polish_result.lead_section}"
+        lead_section = f"# Executive Summary\n{polish_result.lead_section}"
         polished_article = "\n\n".join([lead_section, polish_result.page])
         polished_article_dict = ArticleTextProcessing.parse_article_into_dict(
             polished_article
