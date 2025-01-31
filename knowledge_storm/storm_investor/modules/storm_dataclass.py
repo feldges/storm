@@ -3,8 +3,6 @@ import re
 from collections import OrderedDict
 from typing import Union, Optional, Any, List, Tuple, Dict
 
-from torch.cuda import empty_cache as cuda_empty_cache
-from torch.mps import empty_cache as mps_empty_cache
 import gc
 
 import numpy as np
@@ -132,11 +130,6 @@ class StormInformationTable(InformationTable):
             del self.collected_snippets
             del self.collected_urls
 
-            # Clear device cache if needed
-            if device_type == 'cuda':
-                cuda_empty_cache()
-            elif device_type == 'mps':
-                mps_empty_cache()
             gc.collect()
 
     def retrieve_information(
