@@ -504,8 +504,8 @@ def set_storm_runner(auth):
     )
 
     # rm = YouRM(ydc_api_key=ydc_api_key, k=engine_args.search_top_k)
-    # rm = BraveRM(k=engine_args.search_top_k)
-    rm = BingSearch(bing_search_api_key=bing_search_api_key, k=engine_args.search_top_k)
+    rm = BraveRM(k=engine_args.search_top_k)
+    # rm = BingSearch(bing_search_api_key=bing_search_api_key, k=engine_args.search_top_k)
 
     runner = STORMWikiRunner(engine_args, llm_configs, rm)
     return runner
