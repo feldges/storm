@@ -14,9 +14,12 @@ RUN pip install poetry
 # Copy dependency files
 COPY pyproject.toml poetry.lock ./
 
+# Install CPU torch FIRST
+RUN pip install torch==2.2.0 --index-url https://download.pytorch.org/whl/cpu
+
 # Install dependencies
 RUN poetry config virtualenvs.create false && \
-    poetry install --no-interaction --only main
+    poetry install --no-interaction --only main --no-root
 
 # Copy application code
 COPY . /app
