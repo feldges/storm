@@ -236,8 +236,8 @@ class STORMWikiRunner(Engine):
                 return_conversation_log=True,
             )
         )
-        download_stats = self.retriever.rm.webpage_helper.get_stats()
-        print(f"Download statistics: {download_stats}")
+        # download_stats = self.retriever.rm.webpage_helper.get_stats()
+        # print(f"Download statistics: {download_stats}")
         # -------------------------------------------------------------------------------
         # Use DB instead of local file system
         oppo = Opportunities(id=self.opportunity_id, user_id=self.user_id, conversation_log=dump_json(conversation_log), raw_search_results=dump_url_to_info(information_table))
